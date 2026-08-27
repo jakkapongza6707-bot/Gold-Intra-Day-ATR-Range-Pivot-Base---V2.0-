@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gold Zone Analyzer</title>
+  
+  <!-- 1. ดึง Supabase Client SDK (จำเป็นสำหรับการส่งข้อมูลขึ้น DB) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f6f9; }
+    .card { background: #fff; padding: 20px; border-radius: 8px; max-width: 500px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    button { width: 100%; padding: 10px; background: #d4af37; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    button:hover { background: #b89628; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>วิเคราะห์โซนทองคำ (XAU/USD)</h2>
+    
+    <div class="form-group">
+      <label>ราคาปัจจุบัน (Current Price):</label>
+      <input type="number" id="currentPrice" step="0.01" placeholder="เช่น 2650.50">
+    </div>
+
+    <div class="form-group">
+      <label>MA12:</label>
+      <input type="number" id="ma12" step="0.01" placeholder="เช่น 2640.00">
+    </div>
+
+    <div class="form-group">
+      <label>ATR14:</label>
+      <input type="number" id="atr14" step="0.01" placeholder="เช่น 25.00">
+    </div>
+
+    <div class="form-group">
+      <label>SD20:</label>
+      <input type="number" id="sd20" step="0.01" placeholder="เช่น 30.00">
+    </div>
+
+    <button id="btnAnalyzeMarket">วิเคราะห์และบันทึกข้อมูล</button>
+  </div>
+
+  <!-- 2. เชื่อมต่อกับไฟล์ JavaScript (ต้องวางไว้ด้านล่างสุดก่อนปิด body) -->
+  <script src="gold-analyzer.js"></script>
+</body>
+</html>

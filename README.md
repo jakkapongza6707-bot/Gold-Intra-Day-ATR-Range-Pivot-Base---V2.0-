@@ -1,1 +1,0 @@
-# Gold-Intra-Day-ATR-Range-Pivot-Base---V2.0-
