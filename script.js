@@ -163,6 +163,9 @@ function clearAllHistory() {
   }
 }
 
+// -------------------------------------------------------------
+// แก้ไขจุดนี้: ดึงตัวเลขขึ้นไปใส่ในช่องกรอกข้อมูลอย่างเดียว (ไม่วิเคราะห์อัตโนมัติ)
+// -------------------------------------------------------------
 function reuseData(id) {
   const list = getHistory();
   const item = list.find(i => i.id === id);
@@ -172,7 +175,13 @@ function reuseData(id) {
     document.getElementById("atr14").value = item.atr14;
     document.getElementById("sd20").value = item.sd20;
     
-    renderResultsUI(item);
+    // ซ่อนตารางวิเคราะห์ไว้ก่อน หากมีของเก่าค้างอยู่
+    const resultContainer = document.getElementById("resultContainer");
+    if (resultContainer) {
+      resultContainer.style.display = "none";
+    }
+
+    // เลื่อนหน้าจอขึ้นไปที่ช่องกรอกข้อมูลข้างบน
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
@@ -239,14 +248,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const atr = document.getElementById("atr14")?.value;
         const sd = document.getElementById("sd20")?.value;
 
-        // 1. ถามยืนยันก่อนว่าจะบันทึกลงประวัติด้วยหรือไม่
+        // 1. ถามยืนยันเมื่อกดปุ่มวิเคราะห์
         const shouldSave = confirm("ต้องการบันทึกข้อมูลชุดนี้ลงประวัติด้วยหรือไม่?\n\n• กด [ตกลง] = วิเคราะห์ + บันทึกประวัติ\n• กด [ยกเลิก] = วิเคราะห์อย่างเดียว (ไม่บันทึก)");
 
-        // 2. ไม่ว่าจะกด ตกลง หรือ ยกเลิก ก็จะวิเคราะห์และแสดงผลเสมอ
+        // 2. วิเคราะห์และแสดงผล (ทั้งกรณีตกลงและยกเลิก)
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
         renderResultsUI(result);
 
-        // 3. บันทึกประวัติเฉพาะคนที่กด "ตกลง"
+        // 3. บันทึกประวัติเฉพาะกด "ตกลง"
         if (shouldSave) {
           saveToHistory(result);
         }
