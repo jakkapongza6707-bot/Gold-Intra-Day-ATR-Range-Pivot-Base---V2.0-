@@ -239,13 +239,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const atr = document.getElementById("atr14")?.value;
         const sd = document.getElementById("sd20")?.value;
 
-        // 1. วิเคราะห์คำนวณและแสดงตารางผลลัพธ์บนหน้าจอทันที
+        // 1. ถามยืนยันก่อนว่าจะบันทึกลงประวัติด้วยหรือไม่
+        const shouldSave = confirm("ต้องการบันทึกข้อมูลชุดนี้ลงประวัติด้วยหรือไม่?\n\n• กด [ตกลง] = วิเคราะห์ + บันทึกประวัติ\n• กด [ยกเลิก] = วิเคราะห์อย่างเดียว (ไม่บันทึก)");
+
+        // 2. ไม่ว่าจะกด ตกลง หรือ ยกเลิก ก็จะวิเคราะห์และแสดงผลเสมอ
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
         renderResultsUI(result);
 
-        // 2. ถามว่าต้องการบันทึกลงประวัติหรือไม่
-        const wantToSave = confirm("วิเคราะห์สำเร็จ! คุณต้องการบันทึกข้อมูลชุดนี้ลงประวัติด้วยหรือไม่?");
-        if (wantToSave) {
+        // 3. บันทึกประวัติเฉพาะคนที่กด "ตกลง"
+        if (shouldSave) {
           saveToHistory(result);
         }
 
