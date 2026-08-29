@@ -1,5 +1,5 @@
 /* ==========================================
- * GOLD ZONE ANALYZER PRO — 9-LEVEL INTRADAY ATR
+ * GOLD ZONE ANALYZER PRO — INTRADAY ATR ZONES
  * ========================================== */
 
 function safeNumber(val, fallback = 0) {
@@ -12,14 +12,10 @@ function round(val, dec = 2) {
   return Number(n.toFixed(dec));
 }
 
-function formatDate(date) {
-  const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear() + 543;
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+function formatISOToInput(isoString) {
+  const d = new Date(isoString);
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
 }
 
 function getVolatilityRegime(sd20, atr14) {
@@ -34,7 +30,6 @@ function getVolatilityRegime(sd20, atr14) {
   return { ratio: round(ratio, 2), text: "Low Volatility" };
 }
 
-// คำนวณ 9 ระดับ Intraday ATR Zones
 function calculateIntradayZones(anchorPrice, atr14) {
   const base = safeNumber(anchorPrice, 0);
   const atr = safeNumber(atr14, 0);
@@ -87,7 +82,6 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   };
 }
 
-// Render Results
 function renderResultsUI(result) {
   const resultContainer = document.getElementById("resultContainer");
   const statusRegime = document.getElementById("statusRegime");
@@ -117,7 +111,6 @@ function renderResultsUI(result) {
     `;
   }).join("");
 
-  // พิกัดสำคัญ
   const z = result.zones;
   summaryContent.innerHTML = `
     <div>🔴 <strong>วงกลมส้มบน (แนวต้านไฮ):</strong> ${z[2].price.toFixed(2)} – ${z[1].price.toFixed(2)} (+0.50 ถึง +0.60 ATR)</div>
@@ -128,7 +121,6 @@ function renderResultsUI(result) {
   resultContainer.style.display = "block";
 }
 
-// History Management
 function getHistory() {
   const history = localStorage.getItem("GoldZoneHistoryList");
   return history ? JSON.parse(history) : [];
@@ -141,11 +133,27 @@ function saveToHistory(record) {
   renderHistoryUI();
 }
 
-function deleteHistoryItem(id) {
+function updateHistoryDate(id) {
+  const newDateVal = document.getElementById(`date-input-${id}`)?.value;
+  if (!newDateVal) return;
+
   let list = getHistory();
-  list = list.filter(item => item.id !== id);
-  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
-  renderHistoryUI();
+  const index = list.findIndex(item => item.id === id);
+  if (index !== -1) {
+    list[index].timestamp = new Date(newDateVal).toISOString();
+    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+    alert("อัปเดตวันที่เรียบร้อยแล้ว!");
+    renderHistoryUI();
+  }
+}
+
+function deleteHistoryItem(id) {
+  if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
+    let list = getHistory();
+    list = list.filter(item => item.id !== id);
+    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+    renderHistoryUI();
+  }
 }
 
 function clearAllHistory() {
@@ -183,8 +191,14 @@ function renderHistoryUI() {
     <div class="history-card">
       <div class="history-card-header">
         <span class="history-price">💰 Anchor: ${item.currentPrice.toFixed(2)}</span>
-        <span class="history-time">${formatDate(item.timestamp)}</span>
       </div>
+
+      <div class="date-edit-box">
+        <label>📅 วันที่บันทึก:</label>
+        <input type="datetime-local" id="date-input-${item.id}" class="date-input" value="${formatISOToInput(item.timestamp)}">
+        <button class="btn-save-date" onclick="updateHistoryDate(${item.id})">💾 บันทึกวันที่</button>
+      </div>
+
       <div class="history-grid">
         <div class="history-item">
           <div class="history-item-label">D1 MA12</div>
@@ -205,13 +219,12 @@ function renderHistoryUI() {
       </div>
       <div class="history-actions">
         <button class="btn-reuse" onclick="reuseData(${item.id})">🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
-        <button class="btn-delete" onclick="deleteHistoryItem(${item.id})">🗑️ ลบรายการนี้</button>
+        <button class="btn-delete" onclick="deleteHistoryItem(${item.id})">🗑️ ลบ</button>
       </div>
     </div>
   `).join("");
 }
 
-// Event Listeners
 document.addEventListener("DOMContentLoaded", () => {
   renderHistoryUI();
 
@@ -220,6 +233,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (btnAnalyze) {
     btnAnalyze.addEventListener("click", () => {
+      // 1. ถามยืนยันก่อนวิเคราะห์
+      const confirmAnalyze = confirm("ต้องการเริ่มวิเคราะห์และบันทึกข้อมูลใช่หรือไม่?");
+      if (!confirmAnalyze) return;
+
       try {
         const cp = document.getElementById("currentPrice")?.value;
         const ma = document.getElementById("ma12")?.value;
@@ -243,3 +260,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.reuseData = reuseData;
 window.deleteHistoryItem = deleteHistoryItem;
+window.updateHistoryDate = updateHistoryDate;
