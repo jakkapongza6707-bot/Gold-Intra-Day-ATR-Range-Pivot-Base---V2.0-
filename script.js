@@ -1,90 +1,6 @@
 /* ==========================================
- * GOLD ZONE ANALYZER PRO — SUPABASE CLOUD + FULL FEATURES
+ * GOLD ZONE ANALYZER PRO — INTRADAY ATR ZONES
  * ========================================== */
-
-const SUPABASE_URL = 'https://ctolckvhfojrchzjaqyo.supabase.co';
-const SUPABASE_ANON_KEY = 'Sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR';
-
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-let currentUser = null;
-
-// ระบบ Login / Logout ด้วย Email (Magic Link)
-async function handleAuthAction() {
-  if (currentUser) {
-    await supabaseClient.auth.signOut();
-    alert("ออกจากระบบเรียบร้อย");
-    window.location.reload();
-  } else {
-    const email = prompt("กรุณากรอกอีเมลของคุณเพื่อเข้าสู่ระบบ/สมัครใช้งาน:");
-    if (!email) return;
-    
-    const { error } = await supabaseClient.auth.signInWithOtp({ email });
-    if (error) {
-      alert("เกิดข้อผิดพลาด: " + error.message);
-    } else {
-      alert("ระบบได้ส่งลิงก์เข้าสู่ระบบไปยังอีเมล " + email + " แล้ว กรุณาตรวจสอบอีเมลครับ");
-    }
-  }
-}
-
-async function checkUserSession() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  currentUser = session ? session.user : null;
-  
-  const userInfo = document.getElementById("userInfo");
-  const authBtn = document.getElementById("authBtn");
-
-  if (currentUser) {
-    if (userInfo) userInfo.textContent = `👤 ${currentUser.email}`;
-    if (authBtn) {
-      authBtn.textContent = "ออกจากระบบ";
-      authBtn.className = "auth-btn logout";
-    }
-    
-    // ทำการย้ายข้อมูลเก่าจาก LocalStorage ขึ้น Cloud อัตโนมัติ (ถ้ามี)
-    await migrateLocalStorageToCloud();
-    
-    renderHistoryUI();
-  } else {
-    if (userInfo) userInfo.textContent = "⚠️ ยังไม่ได้เข้าสู่ระบบ (กรุณา Login เพื่อซิงค์ Cloud)";
-    if (authBtn) {
-      authBtn.textContent = "เข้าสู่ระบบ";
-      authBtn.className = "auth-btn";
-    }
-    const historyList = document.getElementById("historyList");
-    if (historyList) {
-      historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">กรุณาเข้าสู่ระบบเพื่อดูประวัติบน Cloud</p>`;
-    }
-  }
-}
-
-// ฟังก์ชันย้ายข้อมูล LocalStorage เดิมขึ้น Supabase อัตโนมัติ
-async function migrateLocalStorageToCloud() {
-  const localData = localStorage.getItem("GoldZoneHistoryList");
-  if (!localData) return;
-
-  try {
-    const localList = JSON.parse(localData);
-    if (localList.length === 0) return;
-
-    console.log("กำลังย้ายข้อมูลเก่าขึ้น Cloud...");
-    for (let item of localList) {
-      await supabaseClient.from('gold_history').insert([{
-        user_id: currentUser.id,
-        timestamp: item.timestamp || new Date().toISOString(),
-        current_price: item.currentPrice,
-        ma12: item.ma12,
-        atr14: item.atr14,
-        sd20: item.sd20
-      }]);
-    }
-
-    localStorage.removeItem("GoldZoneHistoryList");
-    console.log("ย้ายข้อมูลเก่าสำเร็จ!");
-  } catch (err) {
-    console.error("Migration error:", err);
-  }
-}
 
 function safeNumber(val, fallback = 0) {
   const n = parseFloat(val);
@@ -155,8 +71,9 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   const zones = calculateIntradayZones(currentPrice, atr14);
 
   return {
+    id: Date.now(),
     timestamp: new Date().toISOString(),
-    current_price: currentPrice,
+    currentPrice,
     ma12,
     atr14,
     sd20,
@@ -173,7 +90,7 @@ function renderResultsUI(result) {
 
   if (!resultContainer || !zonesTableBody || !statusRegime || !summaryContent) return;
 
-  statusRegime.innerText = `Anchor Base (D1 Open): ${result.current_price.toFixed(2)} | D1 ATR14: ${result.atr14.toFixed(4)}`;
+  statusRegime.innerText = `Anchor Base (D1 Open): ${result.currentPrice.toFixed(2)} | D1 ATR14: ${result.atr14.toFixed(4)}`;
 
   zonesTableBody.innerHTML = result.zones.map(z => {
     let rowClass = "";
@@ -204,7 +121,7 @@ function renderResultsUI(result) {
   resultContainer.style.display = "block";
 }
 
-// ฟังก์ชันจำลองการสแกนตลาด (Scanning Animation 10 ขั้นตอน)
+// ฟังก์ชันจำลองการสแกนตลาด (Scanning Animation)
 function runScanningAnimation(callback) {
   const scanModal = document.getElementById("scanModal");
   const progressFill = document.getElementById("progressFill");
@@ -263,111 +180,80 @@ function runScanningAnimation(callback) {
   }, 25);
 }
 
-// --- ฟังก์ชันจัดการข้อมูลบน Cloud (Supabase) ---
-async function saveToCloud(record) {
-  if (!currentUser) {
-    alert("กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูลลง Cloud");
-    return;
-  }
-
-  const { error } = await supabaseClient.from('gold_history').insert([{
-    user_id: currentUser.id,
-    timestamp: record.timestamp,
-    current_price: record.current_price,
-    ma12: record.ma12,
-    atr14: record.atr14,
-    sd20: record.sd20
-  }]);
-
-  if (error) {
-    alert("บันทึกไม่สำเร็จ: " + error.message);
-  } else {
-    renderHistoryUI();
-  }
+function getHistory() {
+  const history = localStorage.getItem("GoldZoneHistoryList");
+  return history ? JSON.parse(history) : [];
 }
 
-async function getHistoryFromCloud() {
-  if (!currentUser) return [];
-  const { data, error } = await supabaseClient
-    .from('gold_history')
-    .select('*')
-    .order('timestamp', { ascending: false });
-
-  if (error) {
-    console.error("Error fetching history:", error);
-    return [];
-  }
-  return data;
+function saveToHistory(record) {
+  let list = getHistory();
+  list.unshift(record);
+  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+  renderHistoryUI();
 }
 
-async function updateHistoryDate(id) {
+function updateHistoryDate(id) {
   const newDateVal = document.getElementById(`date-input-${id}`)?.value;
   if (!newDateVal) return;
 
-  const newIsoString = new Date(newDateVal).toISOString();
-  const { error } = await supabaseClient
-    .from('gold_history')
-    .update({ timestamp: newIsoString })
-    .eq('id', id);
-
-  if (error) {
-    alert("อัปเดตวันที่ไม่สำเร็จ: " + error.message);
-  } else {
+  let list = getHistory();
+  const index = list.findIndex(item => item.id === id);
+  if (index !== -1) {
+    list[index].timestamp = new Date(newDateVal).toISOString();
+    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
     alert("อัปเดตวันที่เรียบร้อยแล้ว!");
     renderHistoryUI();
   }
 }
 
-async function deleteHistoryItem(id) {
-  if (confirm("ต้องการลบรายการนี้จาก Cloud ใช่หรือไม่?")) {
-    const { error } = await supabaseClient.from('gold_history').delete().eq('id', id);
-    if (error) {
-      alert("ลบไม่สำเร็จ: " + error.message);
-    } else {
-      renderHistoryUI();
+function deleteHistoryItem(id) {
+  if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
+    let list = getHistory();
+    list = list.filter(item => item.id !== id);
+    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+    renderHistoryUI();
+  }
+}
+
+function clearAllHistory() {
+  if (confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) {
+    localStorage.removeItem("GoldZoneHistoryList");
+    renderHistoryUI();
+  }
+}
+
+function reuseData(id) {
+  const list = getHistory();
+  const item = list.find(i => i.id === id);
+  if (item) {
+    document.getElementById("currentPrice").value = item.currentPrice;
+    document.getElementById("ma12").value = item.ma12;
+    document.getElementById("atr14").value = item.atr14;
+    document.getElementById("sd20").value = item.sd20;
+
+    const resultContainer = document.getElementById("resultContainer");
+    if (resultContainer) {
+      resultContainer.style.display = "none";
     }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
 
-async function clearAllHistory() {
-  if (confirm("คุณต้องการลบประวัติทั้งหมดบน Cloud ใช่หรือไม่?")) {
-    const { error } = await supabaseClient.from('gold_history').delete().eq('user_id', currentUser.id);
-    if (error) {
-      alert("ลบไม่สำเร็จ: " + error.message);
-    } else {
-      renderHistoryUI();
-    }
-  }
-}
-
-function reuseData(cp, ma, atr, sd) {
-  document.getElementById("currentPrice").value = cp;
-  document.getElementById("ma12").value = ma;
-  document.getElementById("atr14").value = atr;
-  document.getElementById("sd20").value = sd;
-
-  const resultContainer = document.getElementById("resultContainer");
-  if (resultContainer) {
-    resultContainer.style.display = "none";
-  }
-
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-async function renderHistoryUI() {
+function renderHistoryUI() {
   const historyList = document.getElementById("historyList");
-  if (!historyList || !currentUser) return;
+  if (!historyList) return;
 
-  const list = await getHistoryFromCloud();
+  const list = getHistory();
   if (list.length === 0) {
-    historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">ยังไม่มีประวัติบน Cloud</p>`;
+    historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">ยังไม่มีประวัติการบันทึก</p>`;
     return;
   }
 
   historyList.innerHTML = list.map(item => `
     <div class="history-card">
       <div class="history-card-header">
-        <span class="history-price">💰 Anchor: ${item.current_price.toFixed(2)}</span>
+        <span class="history-price">💰 Anchor: ${item.currentPrice.toFixed(2)}</span>
       </div>
 
       <div class="date-edit-box">
@@ -391,19 +277,19 @@ async function renderHistoryUI() {
         </div>
         <div class="history-item">
           <div class="history-item-label">VOLATILITY</div>
-          <div class="history-item-val">${getVolatilityRegime(item.sd20, item.atr14).ratio}</div>
+          <div class="history-item-val">${item.regime ? item.regime.ratio : '-'}</div>
         </div>
       </div>
       <div class="history-actions">
-        <button class="btn-reuse" onclick="reuseData(${item.current_price}, ${item.ma12}, ${item.atr14}, ${item.sd20})">🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
+        <button class="btn-reuse" onclick="reuseData(${item.id})">🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
         <button class="btn-delete" onclick="deleteHistoryItem(${item.id})">🗑️ ลบ</button>
       </div>
     </div>
   `).join("");
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await checkUserSession();
+document.addEventListener("DOMContentLoaded", () => {
+  renderHistoryUI();
 
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
   const btnClearHistory = document.getElementById("btnClearHistory");
@@ -436,11 +322,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (btnConfirmAnalyze) {
     btnConfirmAnalyze.addEventListener("click", () => {
       confirmModal.style.display = "none";
-      runScanningAnimation(async () => {
+      runScanningAnimation(() => {
         if (currentAnalysisData) {
           renderResultsUI(currentAnalysisData);
-          await saveToCloud(currentAnalysisData);
+          saveToHistory(currentAnalysisData);
           
+          // Smooth Scroll เลื่อนหน้าจอลงไปหาผลลัพธ์อัตโนมัติ
           const resultContainer = document.getElementById("resultContainer");
           if (resultContainer) {
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -457,6 +344,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (currentAnalysisData) {
           renderResultsUI(currentAnalysisData);
           
+          // Smooth Scroll เลื่อนหน้าจอลงไปหาผลลัพธ์อัตโนมัติ
           const resultContainer = document.getElementById("resultContainer");
           if (resultContainer) {
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -474,4 +362,3 @@ document.addEventListener("DOMContentLoaded", async () => {
 window.reuseData = reuseData;
 window.deleteHistoryItem = deleteHistoryItem;
 window.updateHistoryDate = updateHistoryDate;
-window.handleAuthAction = handleAuthAction;
