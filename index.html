@@ -122,6 +122,26 @@
     .btn-modal:active {
       opacity: 0.6;
     }
+
+    /* Scanning Modal Specific Styling */
+    .scan-icon { font-size: 40px; margin-bottom: 8px; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    .scan-title { font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1.5px; margin: 0; }
+    .scan-sub { font-size: 12px; color: #718096; margin-top: 4px; margin-bottom: 16px; }
+    
+    .scan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+    .scan-item {
+      background: #20232d; border: 1px solid #2d3142; border-radius: 8px; padding: 8px 10px;
+      font-size: 11px; font-weight: bold; color: #4a5568; display: flex; align-items: center; gap: 6px;
+      transition: all 0.3s ease;
+    }
+    .scan-item.active { color: #e2e8f0; border-color: #319795; }
+    .scan-item.done { color: #319795; border-color: #319795; background: rgba(49, 151, 149, 0.1); }
+    .scan-item .icon { font-size: 12px; }
+
+    .progress-bar-container { background: #20232d; border-radius: 10px; height: 6px; overflow: hidden; margin-bottom: 8px; }
+    .progress-bar-fill { background: linear-gradient(90deg, #3182ce, #319795); width: 0%; height: 100%; transition: width 0.1s ease; }
+    .progress-text { font-size: 12px; font-weight: bold; color: #a0aec0; }
   </style>
 </head>
 <body>
@@ -193,6 +213,33 @@
     </div>
   </div>
 
-  <script src="script.js?v=1001"></script>
+  <!-- Pop-up Scanning Animation Modal -->
+  <div id="scanModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="scan-icon">🔍</div>
+      <div class="scan-title">SCANNING MARKET</div>
+      <div class="scan-sub">กำลังตรวจสอบ Market Conditions...</div>
+      
+      <div class="scan-grid">
+        <div class="scan-item" id="chk-0"><span class="icon">○</span> PRICE</div>
+        <div class="scan-item" id="chk-1"><span class="icon">○</span> D1 DATA</div>
+        <div class="scan-item" id="chk-2"><span class="icon">○</span> D1 ATR / SD</div>
+        <div class="scan-item" id="chk-3"><span class="icon">○</span> W1 DATA</div>
+        <div class="scan-item" id="chk-4"><span class="icon">○</span> W1 ATR / SD</div>
+        <div class="scan-item" id="chk-5"><span class="icon">○</span> ZONES</div>
+        <div class="scan-item" id="chk-6"><span class="icon">○</span> ZONE STRENGTH</div>
+        <div class="scan-item" id="chk-7"><span class="icon">○</span> VOLATILITY</div>
+        <div class="scan-item" id="chk-8"><span class="icon">○</span> MARKET POSITION</div>
+        <div class="scan-item" id="chk-9"><span class="icon">○</span> FINAL ANALYSIS</div>
+      </div>
+
+      <div class="progress-bar-container">
+        <div id="progressFill" class="progress-bar-fill"></div>
+      </div>
+      <div id="progressText" class="progress-text">0%</div>
+    </div>
+  </div>
+
+  <script src="script.js?v=9999"></script>
 </body>
 </html>
