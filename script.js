@@ -1,12 +1,8 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (OFFLINE-FIRST ENGINE)
+ * GOLD ZONE ANALYZER (LOCAL STORAGE VERSION)
  * ========================================== */
 
-// 1. SUPABASE SETUP
-const SUPABASE_URL = "https://xuxvowhghgndyfsedpzs.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR";
-
-// 2. HELPER FUNCTIONS
+// 1. HELPER FUNCTIONS
 function safeNumber(val, fallback = 0) {
   const n = parseFloat(val);
   return Number.isFinite(n) ? n : fallback;
@@ -17,7 +13,7 @@ function round(val, dec = 2) {
   return Number(n.toFixed(dec));
 }
 
-// 3. CORE ANALYZER LOGIC
+// 2. CORE ANALYZER LOGIC
 function getVolatilityRegime(sd20, atr14) {
   const sd = safeNumber(sd20, 0);
   const atr = safeNumber(atr14, 0);
@@ -125,7 +121,7 @@ function scoreZoneStrength(zone, currentPrice, ma12, atr14, sd20) {
   };
 }
 
-// 4. MAIN ANALYZER FUNCTION
+// 3. MAIN ANALYZER FUNCTION
 function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   const currentPrice = safeNumber(cpInput, 0);
   const ma12 = safeNumber(maInput, 0);
@@ -158,40 +154,7 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   };
 }
 
-// 5. SILENT BACKGROUND SYNC
-async function silentSaveToSupabase(payload) {
-  try {
-    const record = {
-      current_price: payload.currentPrice,
-      ma12: payload.ma12,
-      atr14: payload.atr14,
-      sd20: payload.sd20,
-      volatility_ratio: payload.features.volatilityRatio,
-      volatility_text: payload.features.volatilityText,
-      dist_ma: payload.features.distMA,
-      dist_atr: payload.features.distATR,
-      dist_sd: payload.features.distSD,
-      zone_tag: payload.features.zoneTag,
-      zones_data: payload.zones,
-      created_at: new Date().toISOString()
-    };
-
-    await fetch(`${SUPABASE_URL}/rest/v1/gold_settings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify(record)
-    });
-  } catch (e) {
-    // บันทึกเงียบๆ ไม่เด้ง Alert รบกวนผู้ใช้
-  }
-}
-
-// 6. UI EVENT HANDLER
+// 4. UI EVENT HANDLER
 document.addEventListener("DOMContentLoaded", () => {
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
 
@@ -205,14 +168,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
 
-        // บันทึกลงความจำเครื่องมือถือทันที
+        // บันทึกลงความจำเครื่อง (LocalStorage)
         localStorage.setItem("GoldZoneLatestAnalysis", JSON.stringify(result));
 
-        // พยายามแอบส่ง DB เบื้องหลัง
-        silentSaveToSupabase(result);
-
-        // แสดงแจ้งเตือนสำเร็จทันที
-        alert("วิเคราะห์และบันทึกข้อมูลเรียบร้อย!");
+        // แสดงผลสำเร็จ
+        alert("วิเคราะห์และบันทึกข้อมูลสำเร็จ!");
 
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
