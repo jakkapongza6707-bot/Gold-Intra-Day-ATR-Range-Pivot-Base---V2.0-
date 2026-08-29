@@ -233,19 +233,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (btnAnalyze) {
     btnAnalyze.addEventListener("click", () => {
-      // 1. ถามยืนยันก่อนวิเคราะห์
-      const confirmAnalyze = confirm("ต้องการเริ่มวิเคราะห์และบันทึกข้อมูลใช่หรือไม่?");
-      if (!confirmAnalyze) return;
-
       try {
         const cp = document.getElementById("currentPrice")?.value;
         const ma = document.getElementById("ma12")?.value;
         const atr = document.getElementById("atr14")?.value;
         const sd = document.getElementById("sd20")?.value;
 
+        // 1. วิเคราะห์คำนวณและแสดงตารางผลลัพธ์บนหน้าจอทันที
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
-        saveToHistory(result);
         renderResultsUI(result);
+
+        // 2. ถามว่าต้องการบันทึกลงประวัติหรือไม่
+        const wantToSave = confirm("วิเคราะห์สำเร็จ! คุณต้องการบันทึกข้อมูลชุดนี้ลงประวัติด้วยหรือไม่?");
+        if (wantToSave) {
+          saveToHistory(result);
+        }
 
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
