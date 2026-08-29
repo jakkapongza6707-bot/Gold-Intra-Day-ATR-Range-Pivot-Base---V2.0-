@@ -1,8 +1,7 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (WITH ADVANCED HISTORY)
+ * GOLD ZONE ANALYZER PRO — 9-LEVEL INTRADAY ATR
  * ========================================== */
 
-// 1. HELPER FUNCTIONS
 function safeNumber(val, fallback = 0) {
   const n = parseFloat(val);
   return Number.isFinite(n) ? n : fallback;
@@ -17,13 +16,12 @@ function formatDate(date) {
   const d = new Date(date);
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear() + 543; // พ.ศ.
+  const year = d.getFullYear() + 543;
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
-// 2. CORE ANALYZER LOGIC
 function getVolatilityRegime(sd20, atr14) {
   const sd = safeNumber(sd20, 0);
   const atr = safeNumber(atr14, 0);
@@ -36,96 +34,32 @@ function getVolatilityRegime(sd20, atr14) {
   return { ratio: round(ratio, 2), text: "Low Volatility" };
 }
 
-function getMarketPosition(currentPrice, ma12, atr14, sd20) {
-  const cp = safeNumber(currentPrice, 0);
-  const ma = safeNumber(ma12, 0);
+// คำนวณ 9 ระดับ Intraday ATR Zones
+function calculateIntradayZones(anchorPrice, atr14) {
+  const base = safeNumber(anchorPrice, 0);
   const atr = safeNumber(atr14, 0);
-  const sd = safeNumber(sd20, 0);
 
-  const distMA = cp - ma;
-  const distATR = atr > 0 ? distMA / atr : 0;
-  const distSD = sd > 0 ? distMA / sd : 0;
+  const p100_up = base + (atr * 1.00);
+  const p060_up = base + (atr * 0.60);
+  const p050_up = base + (atr * 0.50);
+  const p025_up = base + (atr * 0.25);
 
-  let zoneTag = "Middle Range";
-  if (distMA >= atr * 0.5) zoneTag = "Upper Range";
-  else if (distMA <= -atr * 0.5) zoneTag = "Lower Range";
-
-  return {
-    distMA: round(distMA, 2),
-    distATR: round(distATR, 2),
-    distSD: round(distSD, 2),
-    zoneTag
-  };
-}
-
-function calculateMarketFeatures(cp, ma12, atr14, sd20) {
-  const regime = getVolatilityRegime(sd20, atr14);
-  const pos = getMarketPosition(cp, ma12, atr14, sd20);
-
-  return {
-    volatilityRatio: regime.ratio,
-    volatilityText: regime.text,
-    distMA: pos.distMA,
-    distATR: pos.distATR,
-    distSD: pos.distSD,
-    zoneTag: pos.zoneTag
-  };
-}
-
-function getStrengthLabel(score) {
-  const s = safeNumber(score, 0);
-  if (s >= 80) return "Strong";
-  if (s >= 65) return "Moderate";
-  if (s >= 50) return "Weak";
-  return "Very Weak";
-}
-
-function createD1Zones(currentPrice, atr14, sd20) {
-  const cp = safeNumber(currentPrice, 0);
-  const atr = safeNumber(atr14, 0);
-  const sd = safeNumber(sd20, 0);
+  const p025_dn = base - (atr * 0.25);
+  const p050_dn = base - (atr * 0.50);
+  const p060_dn = base - (atr * 0.60);
+  const p100_dn = base - (atr * 1.00);
 
   return [
-    { type: "Resistance", name: "R3 (SD 2.0)", price: round(cp + sd * 2.0) },
-    { type: "Resistance", name: "R2 (ATR 1.5)", price: round(cp + atr * 1.5) },
-    { type: "Resistance", name: "R1 (ATR 1.0)", price: round(cp + atr * 1.0) },
-    { type: "Support", name: "S1 (ATR 1.0)", price: round(cp - atr * 1.0) },
-    { type: "Support", name: "S2 (ATR 1.5)", price: round(cp - atr * 1.5) },
-    { type: "Support", name: "S3 (SD 2.0)", price: round(cp - sd * 2.0) }
+    { level: "+1.00 ATR", price: round(p100_up), desc: "แนวต้านขอบบน ATR 100%", type: "normal" },
+    { level: "+0.60 ATR (Daily Max)", price: round(p060_up), desc: `🟠 วงกลมส้มบน (แนวต้านไฮประจำวัน ${round(p050_up)}–${round(p060_up)})`, type: "max" },
+    { level: "+0.50 ATR", price: round(p050_up), desc: "โซนเริ่มชะลอตัวฝั่งขาขึ้น", type: "normal" },
+    { level: "+0.25 ATR", price: round(p025_up), desc: "โซนต้านย่อยระหว่างวัน", type: "normal" },
+    { level: "ANCHOR BASE", price: round(base), desc: "จุดสมดุลราคาเปิดประจำวัน", type: "anchor" },
+    { level: "-0.25 ATR", price: round(p025_dn), desc: "โซนรับย่อยระหว่างวัน", type: "normal" },
+    { level: "-0.50 ATR", price: round(p050_dn), desc: "โซนเริ่มชะลอตัวฝั่งขาลง", type: "normal" },
+    { level: "-0.60 ATR (Daily Min)", price: round(p060_dn), desc: `🟠 วงกลมส้มล่าง (แนวรับโลว์ประจำวัน ${round(p060_dn)}–${round(p050_dn)})`, type: "min" },
+    { level: "-1.00 ATR", price: round(p100_dn), desc: "แนวรับขอบล่าง ATR 100%", type: "normal" }
   ];
-}
-
-function scoreZoneStrength(zone, currentPrice, ma12, atr14, sd20) {
-  let score = 50;
-  const cp = safeNumber(currentPrice, 0);
-  const ma = safeNumber(ma12, 0);
-  const atr = safeNumber(atr14, 0);
-  const sd = safeNumber(sd20, 0);
-  const zonePrice = safeNumber(zone.price, 0);
-
-  const isResistance = zone.type === "Resistance";
-  const isSupport = zone.type === "Support";
-
-  if (isResistance && cp > ma) score += 10;
-  if (isSupport && cp < ma) score += 10;
-
-  const distToZone = Math.abs(zonePrice - cp);
-  if (atr > 0) {
-    if (distToZone >= atr * 0.8 && distToZone <= atr * 1.8) score += 15;
-    else if (distToZone < atr * 0.4) score -= 10;
-  }
-
-  if (sd > 0 && atr > 0) {
-    const volRatio = sd / atr;
-    if (volRatio >= 1.3) score += 10;
-    if (volRatio >= 2.0) score += 5;
-  }
-
-  if (zone.name.includes("SD 2.0")) score += 10;
-
-  score = Math.max(0, Math.min(100, score));
-
-  return { score, label: getStrengthLabel(score) };
 }
 
 function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
@@ -138,13 +72,8 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
     throw new Error("กรุณากรอกข้อมูลตัวเลขที่มากกว่า 0 ให้ครบถ้วน");
   }
 
-  const features = calculateMarketFeatures(currentPrice, ma12, atr14, sd20);
-  const rawZones = createD1Zones(currentPrice, atr14, sd20);
-
-  const zones = rawZones.map(z => {
-    const st = scoreZoneStrength(z, currentPrice, ma12, atr14, sd20);
-    return { ...z, score: st.score, strengthLabel: st.label };
-  });
+  const regime = getVolatilityRegime(sd20, atr14);
+  const zones = calculateIntradayZones(currentPrice, atr14);
 
   return {
     id: Date.now(),
@@ -153,40 +82,53 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
     ma12,
     atr14,
     sd20,
-    features,
+    regime,
     zones
   };
 }
 
-// 3. UI RENDER FUNCTIONS
+// Render Results
 function renderResultsUI(result) {
   const resultContainer = document.getElementById("resultContainer");
   const statusRegime = document.getElementById("statusRegime");
   const zonesTableBody = document.getElementById("zonesTableBody");
+  const summaryContent = document.getElementById("summaryContent");
 
-  if (!resultContainer || !zonesTableBody || !statusRegime) return;
+  if (!resultContainer || !zonesTableBody || !statusRegime || !summaryContent) return;
 
-  statusRegime.innerText = `สภาวะตลาด: ${result.features.volatilityText} (Ratio: ${result.features.volatilityRatio})`;
+  statusRegime.innerText = `Anchor Base (D1 Open): ${result.currentPrice.toFixed(2)} | D1 ATR14: ${result.atr14.toFixed(4)}`;
 
-  zonesTableBody.innerHTML = result.zones.map(zone => {
-    const typeClass = zone.type === "Resistance" ? "type-resistance" : "type-support";
-    let badgeClass = "badge-weak";
-    if (zone.score >= 80) badgeClass = "badge-strong";
-    else if (zone.score >= 65) badgeClass = "badge-moderate";
+  zonesTableBody.innerHTML = result.zones.map(z => {
+    let rowClass = "";
+    if (z.type === "anchor") rowClass = "row-anchor";
+    else if (z.type === "max") rowClass = "row-max";
+    else if (z.type === "min") rowClass = "row-min";
+
+    const descHtml = z.desc.includes("🟠") 
+      ? `<span class="orange-highlight">${z.desc}</span>`
+      : z.desc;
 
     return `
-      <tr>
-        <td class="${typeClass}">${zone.name}</td>
-        <td><strong>${zone.price}</strong></td>
-        <td><span class="${badgeClass}">${zone.strengthLabel} (${zone.score})</span></td>
+      <tr class="${rowClass}">
+        <td><strong>${z.level}</strong></td>
+        <td class="price-text">${z.price.toFixed(2)}</td>
+        <td>${descHtml}</td>
       </tr>
     `;
   }).join("");
 
+  // พิกัดสำคัญ
+  const z = result.zones;
+  summaryContent.innerHTML = `
+    <div>🔴 <strong>วงกลมส้มบน (แนวต้านไฮ):</strong> ${z[2].price.toFixed(2)} – ${z[1].price.toFixed(2)} (+0.50 ถึง +0.60 ATR)</div>
+    <div>⚪ <strong>จุดรับ/ต้านย่อยในวัน:</strong> ${z[3].price.toFixed(2)} (+0.25 ATR) และ ${z[5].price.toFixed(2)} (-0.25 ATR)</div>
+    <div>🟢 <strong>วงกลมส้มล่าง (แนวรับโลว์):</strong> ${z[7].price.toFixed(2)} – ${z[6].price.toFixed(2)} (-0.50 ถึง -0.60 ATR)</div>
+  `;
+
   resultContainer.style.display = "block";
 }
 
-// 4. HISTORY MANAGEMENT
+// History Management
 function getHistory() {
   const history = localStorage.getItem("GoldZoneHistoryList");
   return history ? JSON.parse(history) : [];
@@ -194,7 +136,7 @@ function getHistory() {
 
 function saveToHistory(record) {
   let list = getHistory();
-  list.unshift(record); // เอาอันใหม่ไว้บนสุด
+  list.unshift(record);
   localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
   renderHistoryUI();
 }
@@ -222,7 +164,6 @@ function reuseData(id) {
     document.getElementById("atr14").value = item.atr14;
     document.getElementById("sd20").value = item.sd20;
     
-    // คำนวณและแสดงผลทันที
     renderResultsUI(item);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -241,7 +182,7 @@ function renderHistoryUI() {
   historyList.innerHTML = list.map(item => `
     <div class="history-card">
       <div class="history-card-header">
-        <span class="history-price">💰 ${item.currentPrice.toFixed(2)}</span>
+        <span class="history-price">💰 Anchor: ${item.currentPrice.toFixed(2)}</span>
         <span class="history-time">${formatDate(item.timestamp)}</span>
       </div>
       <div class="history-grid">
@@ -249,7 +190,7 @@ function renderHistoryUI() {
           <div class="history-item-label">D1 MA12</div>
           <div class="history-item-val">${item.ma12}</div>
         </div>
-        <div class="history-item-label history-item">
+        <div class="history-item">
           <div class="history-item-label">D1 ATR14</div>
           <div class="history-item-val">${item.atr14}</div>
         </div>
@@ -259,7 +200,7 @@ function renderHistoryUI() {
         </div>
         <div class="history-item">
           <div class="history-item-label">VOLATILITY</div>
-          <div class="history-item-val">${item.features.volatilityRatio}</div>
+          <div class="history-item-val">${item.regime ? item.regime.ratio : '-'}</div>
         </div>
       </div>
       <div class="history-actions">
@@ -270,9 +211,9 @@ function renderHistoryUI() {
   `).join("");
 }
 
-// 5. EVENT LISTENERS
+// Event Listeners
 document.addEventListener("DOMContentLoaded", () => {
-  renderHistoryUI(); // โหลดประวัติเมื่อเปิดหน้าเว็บ
+  renderHistoryUI();
 
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
   const btnClearHistory = document.getElementById("btnClearHistory");
@@ -286,11 +227,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const sd = document.getElementById("sd20")?.value;
 
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
-
-        // บันทึกลงประวัติ
         saveToHistory(result);
-
-        // แสดงผลลัพธ์
         renderResultsUI(result);
 
       } catch (err) {
@@ -304,6 +241,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// ส่งออกให้เรียกใช้ผ่าน HTML onclick ได้
 window.reuseData = reuseData;
 window.deleteHistoryItem = deleteHistoryItem;
