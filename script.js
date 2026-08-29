@@ -1,209 +1,267 @@
-/* ==========================================
- * GOLD ZONE ANALYZER PRO — INTRADAY ATR ZONES
- * ========================================== */
+// Storage Key
+const STORAGE_KEY = 'gold_zone_history_pro';
 
-function safeNumber(val, fallback = 0) {
-  const n = parseFloat(val);
-  return Number.isFinite(n) ? n : fallback;
-}
+// Variable to store temporary pending action
+let pendingSaveAction = false;
 
-function round(val, dec = 2) {
-  const n = safeNumber(val, 0);
-  return Number(n.toFixed(dec));
-}
+// DOM Elements
+const currentPriceInput = document.getElementById('currentPrice');
+const ma12Input = document.getElementById('ma12');
+const atr14Input = document.getElementById('atr14');
+const sd20Input = document.getElementById('sd20');
+const btnAnalyzeMarket = document.getElementById('btnAnalyzeMarket');
 
-function formatISOToInput(isoString) {
-  const d = new Date(isoString);
-  const tzOffset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
-}
+const resultContainer = document.getElementById('resultContainer');
+const statusRegime = document.getElementById('statusRegime');
+const zonesTableBody = document.getElementById('zonesTableBody');
+const summaryContent = document.getElementById('summaryContent');
+const historyList = document.getElementById('historyList');
+const btnClearHistory = document.getElementById('btnClearHistory');
 
-function getVolatilityRegime(sd20, atr14) {
-  const sd = safeNumber(sd20, 0);
-  const atr = safeNumber(atr14, 0);
-  if (atr <= 0) return { ratio: 0, text: "Normal" };
+// Confirm Modal Elements
+const confirmModal = document.getElementById('confirmModal');
+const btnCancelAnalyze = document.getElementById('btnCancelAnalyze');
+const btnConfirmAnalyze = document.getElementById('btnConfirmAnalyze');
 
-  const ratio = sd / atr;
-  if (ratio >= 2.0) return { ratio: round(ratio, 2), text: "Extreme Volatility" };
-  if (ratio >= 1.3) return { ratio: round(ratio, 2), text: "High Volatility" };
-  if (ratio >= 0.8) return { ratio: round(ratio, 2), text: "Normal" };
-  return { ratio: round(ratio, 2), text: "Low Volatility" };
-}
+// Scan Modal Elements
+const scanModal = document.getElementById('scanModal');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
 
-function calculateIntradayZones(anchorPrice, atr14) {
-  const base = safeNumber(anchorPrice, 0);
-  const atr = safeNumber(atr14, 0);
+// Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+  renderHistory();
+});
 
-  const p100_up = base + (atr * 1.00);
-  const p060_up = base + (atr * 0.60);
-  const p050_up = base + (atr * 0.50);
-  const p025_up = base + (atr * 0.25);
+btnAnalyzeMarket.addEventListener('click', () => {
+  const currentPrice = parseFloat(currentPriceInput.value);
+  const ma12 = parseFloat(ma12Input.value);
+  const atr14 = parseFloat(atr14Input.value);
+  const sd20 = parseFloat(sd20Input.value);
 
-  const p025_dn = base - (atr * 0.25);
-  const p050_dn = base - (atr * 0.50);
-  const p060_dn = base - (atr * 0.60);
-  const p100_dn = base - (atr * 1.00);
-
-  return [
-    { level: "+1.00 ATR", price: round(p100_up), desc: "แนวต้านขอบบน ATR 100%", type: "normal" },
-    { level: "+0.60 ATR (Daily Max)", price: round(p060_up), desc: `🟠 วงกลมส้มบน (แนวต้านไฮประจำวัน ${round(p050_up)}–${round(p060_up)})`, type: "max" },
-    { level: "+0.50 ATR", price: round(p050_up), desc: "โซนเริ่มชะลอตัวฝั่งขาขึ้น", type: "normal" },
-    { level: "+0.25 ATR", price: round(p025_up), desc: "โซนต้านย่อยระหว่างวัน", type: "normal" },
-    { level: "ANCHOR BASE", price: round(base), desc: "จุดสมดุลราคาเปิดประจำวัน", type: "anchor" },
-    { level: "-0.25 ATR", price: round(p025_dn), desc: "โซนรับย่อยระหว่างวัน", type: "normal" },
-    { level: "-0.50 ATR", price: round(p050_dn), desc: "โซนเริ่มชะลอตัวฝั่งขาลง", type: "normal" },
-    { level: "-0.60 ATR (Daily Min)", price: round(p060_dn), desc: `🟠 วงกลมส้มล่าง (แนวรับโลว์ประจำวัน ${round(p060_dn)}–${round(p050_dn)})`, type: "min" },
-    { level: "-1.00 ATR", price: round(p100_dn), desc: "แนวรับขอบล่าง ATR 100%", type: "normal" }
-  ];
-}
-
-function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
-  const currentPrice = safeNumber(cpInput, 0);
-  const ma12 = safeNumber(maInput, 0);
-  const atr14 = safeNumber(atrInput, 0);
-  const sd20 = safeNumber(sdInput, 0);
-
-  if (currentPrice <= 0 || ma12 <= 0 || atr14 <= 0 || sd20 <= 0) {
-    throw new Error("กรุณากรอกข้อมูลตัวเลขที่มากกว่า 0 ให้ครบถ้วน");
-  }
-
-  const regime = getVolatilityRegime(sd20, atr14);
-  const zones = calculateIntradayZones(currentPrice, atr14);
-
-  return {
-    id: Date.now(),
-    timestamp: new Date().toISOString(),
-    currentPrice,
-    ma12,
-    atr14,
-    sd20,
-    regime,
-    zones
-  };
-}
-
-function renderResultsUI(result) {
-  const resultContainer = document.getElementById("resultContainer");
-  const statusRegime = document.getElementById("statusRegime");
-  const zonesTableBody = document.getElementById("zonesTableBody");
-  const summaryContent = document.getElementById("summaryContent");
-
-  if (!resultContainer || !zonesTableBody || !statusRegime || !summaryContent) return;
-
-  statusRegime.innerText = `Anchor Base (D1 Open): ${result.currentPrice.toFixed(2)} | D1 ATR14: ${result.atr14.toFixed(4)}`;
-
-  zonesTableBody.innerHTML = result.zones.map(z => {
-    let rowClass = "";
-    if (z.type === "anchor") rowClass = "row-anchor";
-    else if (z.type === "max") rowClass = "row-max";
-    else if (z.type === "min") rowClass = "row-min";
-
-    const descHtml = z.desc.includes("🟠") 
-      ? `<span class="orange-highlight">${z.desc}</span>`
-      : z.desc;
-
-    return `
-      <tr class="${rowClass}">
-        <td><strong>${z.level}</strong></td>
-        <td class="price-text">${z.price.toFixed(2)}</td>
-        <td>${descHtml}</td>
-      </tr>
-    `;
-  }).join("");
-
-  const z = result.zones;
-  summaryContent.innerHTML = `
-    <div>🔴 <strong>วงกลมส้มบน (แนวต้านไฮ):</strong> ${z[2].price.toFixed(2)} – ${z[1].price.toFixed(2)} (+0.50 ถึง +0.60 ATR)</div>
-    <div>⚪ <strong>จุดรับ/ต้านย่อยในวัน:</strong> ${z[3].price.toFixed(2)} (+0.25 ATR) และ ${z[5].price.toFixed(2)} (-0.25 ATR)</div>
-    <div>🟢 <strong>วงกลมส้มล่าง (แนวรับโลว์):</strong> ${z[7].price.toFixed(2)} – ${z[6].price.toFixed(2)} (-0.50 ถึง -0.60 ATR)</div>
-  `;
-
-  resultContainer.style.display = "block";
-}
-
-function getHistory() {
-  const history = localStorage.getItem("GoldZoneHistoryList");
-  return history ? JSON.parse(history) : [];
-}
-
-function saveToHistory(record) {
-  let list = getHistory();
-  list.unshift(record);
-  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
-  renderHistoryUI();
-}
-
-function updateHistoryDate(id) {
-  const newDateVal = document.getElementById(`date-input-${id}`)?.value;
-  if (!newDateVal) return;
-
-  let list = getHistory();
-  const index = list.findIndex(item => item.id === id);
-  if (index !== -1) {
-    list[index].timestamp = new Date(newDateVal).toISOString();
-    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
-    alert("อัปเดตวันที่เรียบร้อยแล้ว!");
-    renderHistoryUI();
-  }
-}
-
-function deleteHistoryItem(id) {
-  if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
-    let list = getHistory();
-    list = list.filter(item => item.id !== id);
-    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
-    renderHistoryUI();
-  }
-}
-
-function clearAllHistory() {
-  if (confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) {
-    localStorage.removeItem("GoldZoneHistoryList");
-    renderHistoryUI();
-  }
-}
-
-// เมื่อกด "กรอกข้อมูลชุดนี้อีกครั้ง" -> นำเลขไปใส่ช่อง Input เท่านั้น (ไม่รันการวิเคราะห์)
-function reuseData(id) {
-  const list = getHistory();
-  const item = list.find(i => i.id === id);
-  if (item) {
-    document.getElementById("currentPrice").value = item.currentPrice;
-    document.getElementById("ma12").value = item.ma12;
-    document.getElementById("atr14").value = item.atr14;
-    document.getElementById("sd20").value = item.sd20;
-
-    // ซ่อนผลลัพธ์การวิเคราะห์เดิมออกก่อน
-    const resultContainer = document.getElementById("resultContainer");
-    if (resultContainer) {
-      resultContainer.style.display = "none";
-    }
-
-    // เลื่อนหน้าจอขึ้นข้างบนสุด
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-}
-
-function renderHistoryUI() {
-  const historyList = document.getElementById("historyList");
-  if (!historyList) return;
-
-  const list = getHistory();
-  if (list.length === 0) {
-    historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">ยังไม่มีประวัติการบันทึก</p>`;
+  if (isNaN(currentPrice) || isNaN(ma12) || isNaN(atr14) || isNaN(sd20)) {
+    alert('กรุณากรอกข้อมูลตัวเลขให้ครบถ้วนทุกช่องครับ');
     return;
   }
 
-  historyList.innerHTML = list.map(item => `
-    <div class="history-card">
+  // แสดง Pop-up สอบถามก่อน
+  confirmModal.style.display = 'flex';
+});
+
+btnCancelAnalyze.addEventListener('click', () => {
+  confirmModal.style.display = 'none';
+  runScanningAnimation(false); // วิเคราะห์แต่ไม่บันทึกประวัติ
+});
+
+btnConfirmAnalyze.addEventListener('click', () => {
+  confirmModal.style.display = 'none';
+  runScanningAnimation(true); // วิเคราะห์และบันทึกประวัติ
+});
+
+btnClearHistory.addEventListener('click', () => {
+  if (confirm('คุณต้องการล้างประวัติการบันทึกทั้งหมดใช่หรือไม่?')) {
+    localStorage.removeItem(STORAGE_KEY);
+    renderHistory();
+  }
+});
+
+// ฟังก์ชันจำลองการสแกน Scanning Animation
+function runScanningAnimation(shouldSave) {
+  scanModal.style.display = 'flex';
+  
+  // Reset Scanning UI
+  progressFill.style.width = '0%';
+  progressText.textContent = '0%';
+  for (let i = 0; i < 10; i++) {
+    const el = document.getElementById(`chk-${i}`);
+    if (el) {
+      el.className = 'scan-item';
+      el.querySelector('.icon').textContent = '○';
+    }
+  }
+
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += 2;
+    if (progress > 100) progress = 100;
+
+    progressFill.style.width = `${progress}%`;
+    progressText.textContent = `${progress}%`;
+
+    // ติ๊กถูกแต่ละรายการตามเปอร์เซ็นต์
+    const step = Math.floor(progress / 10);
+    for (let i = 0; i < step && i < 10; i++) {
+      const el = document.getElementById(`chk-${i}`);
+      if (el && !el.classList.contains('done')) {
+        el.className = 'scan-item done';
+        el.querySelector('.icon').textContent = '✓';
+      }
+    }
+    if (step < 10) {
+      const activeEl = document.getElementById(`chk-${step}`);
+      if (activeEl && !activeEl.classList.contains('done')) {
+        activeEl.className = 'scan-item active';
+      }
+    }
+
+    // เมื่อโหลดครบ 100%
+    if (progress >= 100) {
+      clearInterval(interval);
+      setTimeout(() => {
+        scanModal.style.display = 'none';
+        
+        // ประมวลผลและแสดงตาราง
+        executeAnalysis(shouldSave);
+
+        // Smooth Scroll เลื่อนลงมาหาโซนผลลัพธ์แบบนุ่มนวล
+        resultContainer.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+
+      }, 300);
+    }
+  }, 25); // ปรับความเร็วอนิเมชันรวมประมาณ 1.2 วินาที
+}
+
+// ฟังก์ชันคำนวณและแสดงผล
+function executeAnalysis(shouldSave) {
+  const currentPrice = parseFloat(currentPriceInput.value);
+  const ma12 = parseFloat(ma12Input.value);
+  const atr14 = parseFloat(atr14Input.value);
+  const sd20 = parseFloat(sd20Input.value);
+
+  // คำนวณ Volatility Ratio
+  const ratio = (sd20 / atr14).toFixed(2);
+  let regimeText = "";
+  if (ratio > 1.3 && ratio <= 2.0) {
+    regimeText = `High Volatility (Ratio: ${ratio})`;
+  } else if (ratio > 2.0) {
+    regimeText = `Extreme Volatility (Ratio: ${ratio})`;
+  } else {
+    regimeText = `Normal Volatility (Ratio: ${ratio})`;
+  }
+
+  statusRegime.textContent = `VOLATILITY REGIME: ${regimeText}`;
+
+  // 9 ระดับคำนวณ
+  const zones = [
+    { level: "+1.00 ATR", val: currentPrice + (atr14 * 1.00), desc: "แนวต้านขอบบน ATR 100%", rowClass: "" },
+    { level: "+0.60 ATR (Daily Max)", val: currentPrice + (atr14 * 0.60), desc: `🟠 วงกลมส้มบน (แนวต้านไฮประจำวัน ${(currentPrice + (atr14 * 0.50)).toFixed(2)}–${(currentPrice + (atr14 * 0.60)).toFixed(2)})`, rowClass: "row-max" },
+    { level: "+0.50 ATR", val: currentPrice + (atr14 * 0.50), desc: "โซนเริ่มชะลอตัวฝั่งขาขึ้น", rowClass: "" },
+    { level: "+0.25 ATR", val: currentPrice + (atr14 * 0.25), desc: "โซนต้านย่อยระหว่างวัน", rowClass: "" },
+    { level: "ANCHOR BASE", val: currentPrice, desc: "จุดสมดุลราคาเปิดประจำวัน", rowClass: "row-anchor" },
+    { level: "-0.25 ATR", val: currentPrice - (atr14 * 0.25), desc: "โซนรับย่อยระหว่างวัน", rowClass: "" },
+    { level: "-0.50 ATR", val: currentPrice - (atr14 * 0.50), desc: "โซนเริ่มชะลอตัวฝั่งขาลง", rowClass: "" },
+    { level: "-0.60 ATR (Daily Min)", val: currentPrice - (atr14 * 0.60), desc: `🟠 วงกลมส้มล่าง (แนวรับโลว์ประจำวัน ${(currentPrice - (atr14 * 0.60)).toFixed(2)}–${(currentPrice - (atr14 * 0.50)).toFixed(2)})`, rowClass: "row-min" },
+    { level: "-1.00 ATR", val: currentPrice - (atr14 * 1.00), desc: "แนวรับขอบล่าง ATR 100%", rowClass: "" }
+  ];
+
+  // Render Table Rows
+  zonesTableBody.innerHTML = '';
+  zones.forEach(z => {
+    const tr = document.createElement('tr');
+    if (z.rowClass) tr.className = z.rowClass;
+    
+    tr.innerHTML = `
+      <td style="font-weight: bold; color: ${z.level.includes('ANCHOR') ? '#63b3ed' : (z.level.includes('Max') || z.level.includes('Min') ? '#f6ad55' : '#fff')};">${z.level}</td>
+      <td class="price-text">${z.val.toFixed(2)}</td>
+      <td style="color: ${z.rowClass ? '#f6ad55' : '#a0a0a0'};">${z.desc}</td>
+    `;
+    zonesTableBody.appendChild(tr);
+  });
+
+  // Render Summary Card
+  const pUpperMax = (currentPrice + (atr14 * 0.60)).toFixed(2);
+  const pUpperMin = (currentPrice + (atr14 * 0.50)).toFixed(2);
+  const pSubUpper = (currentPrice + (atr14 * 0.25)).toFixed(2);
+  const pSubLower = (currentPrice - (atr14 * 0.25)).toFixed(2);
+  const pLowerMin = (currentPrice - (atr14 * 0.60)).toFixed(2);
+  const pLowerMax = (currentPrice - (atr14 * 0.50)).toFixed(2);
+
+  summaryContent.innerHTML = `
+    • 🔴 <b>วงกลมส้มบน (แนวต้านไฮ):</b> ${pUpperMin} – ${pUpperMax} (+0.50 ถึง +0.60 ATR)<br>
+    • ⚪ <b>จุดรับ/ต้านย่อยในวัน:</b> ${pSubUpper} (+0.25 ATR) และ ${pSubLower} (-0.25 ATR)<br>
+    • 🟢 <b>วงกลมส้มล่าง (แนวรับโลว์):</b> ${pLowerMin} – ${pLowerMax} (-0.60 ถึง -0.50 ATR)
+  `;
+
+  resultContainer.style.display = 'block';
+
+  // หากกดตกลง ให้ทำการบันทึกลงประวัติ
+  if (shouldSave) {
+    saveToHistory({
+      id: Date.now(),
+      timestamp: getFormattedDateTime(),
+      currentPrice,
+      ma12,
+      atr14,
+      sd20
+    });
+  }
+}
+
+// ฟังก์ชันเกี่ยวกับ History
+function getHistory() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function saveToHistory(entry) {
+  const history = getHistory();
+  history.unshift(entry);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  renderHistory();
+}
+
+function deleteHistory(id) {
+  let history = getHistory();
+  history = history.filter(item => item.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  renderHistory();
+}
+
+function updateHistoryDate(id, newDateStr) {
+  let history = getHistory();
+  const item = history.find(i => i.id === id);
+  if (item) {
+    item.timestamp = newDateStr;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    renderHistory();
+  }
+}
+
+function populateInputs(item) {
+  currentPriceInput.value = item.currentPrice;
+  ma12Input.value = item.ma12;
+  atr14Input.value = item.atr14;
+  sd20Input.value = item.sd20;
+  
+  // ซ่อนผลลัพธ์เดิมก่อน เพื่อรอให้กดปุ่มวิเคราะห์ใหม่
+  resultContainer.style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderHistory() {
+  const history = getHistory();
+  historyList.innerHTML = '';
+
+  if (history.length === 0) {
+    historyList.innerHTML = '<div style="text-align: center; color: #666; font-size: 13px; padding: 10px;">ยังไม่มีประวัติการบันทึก</div>';
+    return;
+  }
+
+  history.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'history-card';
+    card.innerHTML = `
       <div class="history-card-header">
-        <span class="history-price">💰 Anchor: ${item.currentPrice.toFixed(2)}</span>
+        <span class="history-price">Base: ${item.currentPrice.toFixed(2)}</span>
       </div>
 
       <div class="date-edit-box">
-        <label>📅 วันที่บันทึก:</label>
-        <input type="datetime-local" id="date-input-${item.id}" class="date-input" value="${formatISOToInput(item.timestamp)}">
-        <button class="btn-save-date" onclick="updateHistoryDate(${item.id})">💾 บันทึกวันที่</button>
+        <label>วัน-เวลา:</label>
+        <input type="text" class="date-input" id="date-input-${item.id}" value="${item.timestamp}">
+        <button class="btn-save-date" onclick="handleSaveDate(${item.id})">บันทึกวัน</button>
       </div>
 
       <div class="history-grid">
@@ -215,83 +273,39 @@ function renderHistoryUI() {
           <div class="history-item-label">D1 ATR14</div>
           <div class="history-item-val">${item.atr14}</div>
         </div>
-        <div class="history-item">
+        <div class="history-item" style="grid-column: span 2;">
           <div class="history-item-label">D1 SD20</div>
           <div class="history-item-val">${item.sd20}</div>
         </div>
-        <div class="history-item">
-          <div class="history-item-label">VOLATILITY</div>
-          <div class="history-item-val">${item.regime ? item.regime.ratio : '-'}</div>
-        </div>
       </div>
+
       <div class="history-actions">
-        <button class="btn-reuse" onclick="reuseData(${item.id})">🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
-        <button class="btn-delete" onclick="deleteHistoryItem(${item.id})">🗑️ ลบ</button>
+        <button class="btn-reuse" onclick='handleReuse(${JSON.stringify(item)})'>🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
+        <button class="btn-delete" onclick="deleteHistory(${item.id})">ลบ</button>
       </div>
-    </div>
-  `).join("");
+    `;
+    historyList.appendChild(card);
+  });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  renderHistoryUI();
-
-  const btnAnalyze = document.getElementById("btnAnalyzeMarket");
-  const btnClearHistory = document.getElementById("btnClearHistory");
-
-  const confirmModal = document.getElementById("confirmModal");
-  const btnCancelAnalyze = document.getElementById("btnCancelAnalyze");
-  const btnConfirmAnalyze = document.getElementById("btnConfirmAnalyze");
-
-  let currentAnalysisData = null;
-
-  // 1. เมื่อกดปุ่มใหญ่ "วิเคราะห์และบันทึกข้อมูล"
-  if (btnAnalyze) {
-    btnAnalyze.addEventListener("click", () => {
-      try {
-        const cp = document.getElementById("currentPrice")?.value;
-        const ma = document.getElementById("ma12")?.value;
-        const atr = document.getElementById("atr14")?.value;
-        const sd = document.getElementById("sd20")?.value;
-
-        // คำนวณเตรียมไว้
-        currentAnalysisData = analyzeCurrentMarketInput(cp, ma, atr, sd);
-
-        // เปิด Pop-up ถามความสมัครใจ
-        if (confirmModal) {
-          confirmModal.style.display = "flex";
-        }
-      } catch (err) {
-        alert("ข้อผิดพลาด: " + err.message);
-      }
-    });
+function handleSaveDate(id) {
+  const input = document.getElementById(`date-input-${id}`);
+  if (input) {
+    updateHistoryDate(id, input.value);
+    alert('อัปเดตวันที่เรียบร้อยแล้ว');
   }
+}
 
-  // 2. เมื่อกดปุ่ม "ตกลง" ใน Pop-up -> วิเคราะห์ + บันทึกลงประวัติ
-  if (btnConfirmAnalyze) {
-    btnConfirmAnalyze.addEventListener("click", () => {
-      if (currentAnalysisData) {
-        renderResultsUI(currentAnalysisData);
-        saveToHistory(currentAnalysisData);
-      }
-      confirmModal.style.display = "none";
-    });
-  }
+function handleReuse(item) {
+  populateInputs(item);
+}
 
-  // 3. เมื่อกดปุ่ม "ยกเลิก" ใน Pop-up -> วิเคราะห์อย่างเดียว (ไม่บันทึก)
-  if (btnCancelAnalyze) {
-    btnCancelAnalyze.addEventListener("click", () => {
-      if (currentAnalysisData) {
-        renderResultsUI(currentAnalysisData);
-      }
-      confirmModal.style.display = "none";
-    });
-  }
-
-  if (btnClearHistory) {
-    btnClearHistory.addEventListener("click", clearAllHistory);
-  }
-});
-
-window.reuseData = reuseData;
-window.deleteHistoryItem = deleteHistoryItem;
-window.updateHistoryDate = updateHistoryDate;
+function getFormattedDateTime() {
+  const now = new Date();
+  const d = String(now.getDate()).padStart(2, '0');
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const y = now.getFullYear();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${d}/${m}/${y} ${hh}:${mm}`;
+}
