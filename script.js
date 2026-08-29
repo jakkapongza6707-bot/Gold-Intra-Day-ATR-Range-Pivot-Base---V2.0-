@@ -1,6 +1,9 @@
 // Storage Key
 const STORAGE_KEY = 'gold_zone_history_pro';
 
+// Variable to store temporary pending action
+let pendingSaveAction = false;
+
 // DOM Elements
 const currentPriceInput = document.getElementById('currentPrice');
 const ma12Input = document.getElementById('ma12');
@@ -25,12 +28,11 @@ const scanModal = document.getElementById('scanModal');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
 
-// Initial Load
+// Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
   renderHistory();
 });
 
-// Event Listeners
 btnAnalyzeMarket.addEventListener('click', () => {
   const currentPrice = parseFloat(currentPriceInput.value);
   const ma12 = parseFloat(ma12Input.value);
@@ -42,17 +44,18 @@ btnAnalyzeMarket.addEventListener('click', () => {
     return;
   }
 
+  // แสดง Pop-up สอบถามก่อน
   confirmModal.style.display = 'flex';
 });
 
 btnCancelAnalyze.addEventListener('click', () => {
   confirmModal.style.display = 'none';
-  runScanningAnimation(false);
+  runScanningAnimation(false); // วิเคราะห์แต่ไม่บันทึกประวัติ
 });
 
 btnConfirmAnalyze.addEventListener('click', () => {
   confirmModal.style.display = 'none';
-  runScanningAnimation(true);
+  runScanningAnimation(true); // วิเคราะห์และบันทึกประวัติ
 });
 
 btnClearHistory.addEventListener('click', () => {
@@ -62,10 +65,11 @@ btnClearHistory.addEventListener('click', () => {
   }
 });
 
-// Scanning Animation Function
+// ฟังก์ชันจำลองการสแกน Scanning Animation
 function runScanningAnimation(shouldSave) {
   scanModal.style.display = 'flex';
   
+  // Reset Scanning UI
   progressFill.style.width = '0%';
   progressText.textContent = '0%';
   for (let i = 0; i < 10; i++) {
@@ -84,6 +88,7 @@ function runScanningAnimation(shouldSave) {
     progressFill.style.width = `${progress}%`;
     progressText.textContent = `${progress}%`;
 
+    // ติ๊กถูกแต่ละรายการตามเปอร์เซ็นต์
     const step = Math.floor(progress / 10);
     for (let i = 0; i < step && i < 10; i++) {
       const el = document.getElementById(`chk-${i}`);
@@ -99,15 +104,16 @@ function runScanningAnimation(shouldSave) {
       }
     }
 
+    // เมื่อโหลดครบ 100%
     if (progress >= 100) {
       clearInterval(interval);
       setTimeout(() => {
         scanModal.style.display = 'none';
         
-        // คำนวณและแสดงผลตาราง
+        // ประมวลผลและแสดงตาราง
         executeAnalysis(shouldSave);
 
-        // เลื่อนหน้าจอลงมาที่ตารางผลลัพธ์แบบ Smooth Scroll
+        // Smooth Scroll เลื่อนลงมาหาโซนผลลัพธ์แบบนุ่มนวล
         resultContainer.scrollIntoView({ 
           behavior: 'smooth', 
           block: 'start' 
@@ -115,16 +121,17 @@ function runScanningAnimation(shouldSave) {
 
       }, 300);
     }
-  }, 25);
+  }, 25); // ปรับความเร็วอนิเมชันรวมประมาณ 1.2 วินาที
 }
 
-// Execution & Calculation Function
+// ฟังก์ชันคำนวณและแสดงผล
 function executeAnalysis(shouldSave) {
   const currentPrice = parseFloat(currentPriceInput.value);
   const ma12 = parseFloat(ma12Input.value);
   const atr14 = parseFloat(atr14Input.value);
   const sd20 = parseFloat(sd20Input.value);
 
+  // คำนวณ Volatility Ratio
   const ratio = (sd20 / atr14).toFixed(2);
   let regimeText = "";
   if (ratio > 1.3 && ratio <= 2.0) {
@@ -137,6 +144,7 @@ function executeAnalysis(shouldSave) {
 
   statusRegime.textContent = `VOLATILITY REGIME: ${regimeText}`;
 
+  // 9 ระดับคำนวณ
   const zones = [
     { level: "+1.00 ATR", val: currentPrice + (atr14 * 1.00), desc: "แนวต้านขอบบน ATR 100%", rowClass: "" },
     { level: "+0.60 ATR (Daily Max)", val: currentPrice + (atr14 * 0.60), desc: `🟠 วงกลมส้มบน (แนวต้านไฮประจำวัน ${(currentPrice + (atr14 * 0.50)).toFixed(2)}–${(currentPrice + (atr14 * 0.60)).toFixed(2)})`, rowClass: "row-max" },
@@ -149,6 +157,7 @@ function executeAnalysis(shouldSave) {
     { level: "-1.00 ATR", val: currentPrice - (atr14 * 1.00), desc: "แนวรับขอบล่าง ATR 100%", rowClass: "" }
   ];
 
+  // Render Table Rows
   zonesTableBody.innerHTML = '';
   zones.forEach(z => {
     const tr = document.createElement('tr');
@@ -162,6 +171,7 @@ function executeAnalysis(shouldSave) {
     zonesTableBody.appendChild(tr);
   });
 
+  // Render Summary Card
   const pUpperMax = (currentPrice + (atr14 * 0.60)).toFixed(2);
   const pUpperMin = (currentPrice + (atr14 * 0.50)).toFixed(2);
   const pSubUpper = (currentPrice + (atr14 * 0.25)).toFixed(2);
@@ -177,6 +187,7 @@ function executeAnalysis(shouldSave) {
 
   resultContainer.style.display = 'block';
 
+  // หากกดตกลง ให้ทำการบันทึกลงประวัติ
   if (shouldSave) {
     saveToHistory({
       id: Date.now(),
@@ -189,7 +200,7 @@ function executeAnalysis(shouldSave) {
   }
 }
 
-// History Functions
+// ฟังก์ชันเกี่ยวกับ History
 function getHistory() {
   const data = localStorage.getItem(STORAGE_KEY);
   return data ? JSON.parse(data) : [];
@@ -225,6 +236,7 @@ function populateInputs(item) {
   atr14Input.value = item.atr14;
   sd20Input.value = item.sd20;
   
+  // ซ่อนผลลัพธ์เดิมก่อน เพื่อรอให้กดปุ่มวิเคราะห์ใหม่
   resultContainer.style.display = 'none';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
