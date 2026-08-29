@@ -163,9 +163,7 @@ function clearAllHistory() {
   }
 }
 
-// -------------------------------------------------------------
-// แก้ไขจุดนี้: ดึงตัวเลขขึ้นไปใส่ในช่องกรอกข้อมูลอย่างเดียว (ไม่วิเคราะห์อัตโนมัติ)
-// -------------------------------------------------------------
+// เมื่อกด "กรอกข้อมูลชุดนี้อีกครั้ง" -> นำเลขไปใส่ช่อง Input เท่านั้น (ไม่รันการวิเคราะห์)
 function reuseData(id) {
   const list = getHistory();
   const item = list.find(i => i.id === id);
@@ -174,14 +172,14 @@ function reuseData(id) {
     document.getElementById("ma12").value = item.ma12;
     document.getElementById("atr14").value = item.atr14;
     document.getElementById("sd20").value = item.sd20;
-    
-    // ซ่อนตารางวิเคราะห์ไว้ก่อน หากมีของเก่าค้างอยู่
+
+    // ซ่อนผลลัพธ์การวิเคราะห์เดิมออกก่อน
     const resultContainer = document.getElementById("resultContainer");
     if (resultContainer) {
       resultContainer.style.display = "none";
     }
 
-    // เลื่อนหน้าจอขึ้นไปที่ช่องกรอกข้อมูลข้างบน
+    // เลื่อนหน้าจอขึ้นข้างบนสุด
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
@@ -240,6 +238,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
   const btnClearHistory = document.getElementById("btnClearHistory");
 
+  const confirmModal = document.getElementById("confirmModal");
+  const btnCancelAnalyze = document.getElementById("btnCancelAnalyze");
+  const btnConfirmAnalyze = document.getElementById("btnConfirmAnalyze");
+
+  let currentAnalysisData = null;
+
+  // 1. เมื่อกดปุ่มใหญ่ "วิเคราะห์และบันทึกข้อมูล"
   if (btnAnalyze) {
     btnAnalyze.addEventListener("click", () => {
       try {
@@ -248,21 +253,37 @@ document.addEventListener("DOMContentLoaded", () => {
         const atr = document.getElementById("atr14")?.value;
         const sd = document.getElementById("sd20")?.value;
 
-        // 1. ถามยืนยันเมื่อกดปุ่มวิเคราะห์
-        const shouldSave = confirm("ต้องการบันทึกข้อมูลชุดนี้ลงประวัติด้วยหรือไม่?\n\n• กด [ตกลง] = วิเคราะห์ + บันทึกประวัติ\n• กด [ยกเลิก] = วิเคราะห์อย่างเดียว (ไม่บันทึก)");
+        // คำนวณเตรียมไว้
+        currentAnalysisData = analyzeCurrentMarketInput(cp, ma, atr, sd);
 
-        // 2. วิเคราะห์และแสดงผล (ทั้งกรณีตกลงและยกเลิก)
-        const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
-        renderResultsUI(result);
-
-        // 3. บันทึกประวัติเฉพาะกด "ตกลง"
-        if (shouldSave) {
-          saveToHistory(result);
+        // เปิด Pop-up ถามความสมัครใจ
+        if (confirmModal) {
+          confirmModal.style.display = "flex";
         }
-
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
       }
+    });
+  }
+
+  // 2. เมื่อกดปุ่ม "ตกลง" ใน Pop-up -> วิเคราะห์ + บันทึกลงประวัติ
+  if (btnConfirmAnalyze) {
+    btnConfirmAnalyze.addEventListener("click", () => {
+      if (currentAnalysisData) {
+        renderResultsUI(currentAnalysisData);
+        saveToHistory(currentAnalysisData);
+      }
+      confirmModal.style.display = "none";
+    });
+  }
+
+  // 3. เมื่อกดปุ่ม "ยกเลิก" ใน Pop-up -> วิเคราะห์อย่างเดียว (ไม่บันทึก)
+  if (btnCancelAnalyze) {
+    btnCancelAnalyze.addEventListener("click", () => {
+      if (currentAnalysisData) {
+        renderResultsUI(currentAnalysisData);
+      }
+      confirmModal.style.display = "none";
     });
   }
 
