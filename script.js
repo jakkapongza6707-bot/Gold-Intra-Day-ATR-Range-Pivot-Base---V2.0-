@@ -1,5 +1,5 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (FULL RENDER FIX)
+ * GOLD ZONE ANALYZER (WITH ADVANCED HISTORY)
  * ========================================== */
 
 // 1. HELPER FUNCTIONS
@@ -11,6 +11,16 @@ function safeNumber(val, fallback = 0) {
 function round(val, dec = 2) {
   const n = safeNumber(val, 0);
   return Number(n.toFixed(dec));
+}
+
+function formatDate(date) {
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear() + 543; // พ.ศ.
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 // 2. CORE ANALYZER LOGIC
@@ -115,10 +125,7 @@ function scoreZoneStrength(zone, currentPrice, ma12, atr14, sd20) {
 
   score = Math.max(0, Math.min(100, score));
 
-  return {
-    score,
-    label: getStrengthLabel(score)
-  };
+  return { score, label: getStrengthLabel(score) };
 }
 
 function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
@@ -136,14 +143,12 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
 
   const zones = rawZones.map(z => {
     const st = scoreZoneStrength(z, currentPrice, ma12, atr14, sd20);
-    return {
-      ...z,
-      score: st.score,
-      strengthLabel: st.label
-    };
+    return { ...z, score: st.score, strengthLabel: st.label };
   });
 
   return {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
     currentPrice,
     ma12,
     atr14,
@@ -153,7 +158,7 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   };
 }
 
-// 3. UI RENDER FUNCTION
+// 3. UI RENDER FUNCTIONS
 function renderResultsUI(result) {
   const resultContainer = document.getElementById("resultContainer");
   const statusRegime = document.getElementById("statusRegime");
@@ -181,9 +186,96 @@ function renderResultsUI(result) {
   resultContainer.style.display = "block";
 }
 
-// 4. UI EVENT HANDLER
+// 4. HISTORY MANAGEMENT
+function getHistory() {
+  const history = localStorage.getItem("GoldZoneHistoryList");
+  return history ? JSON.parse(history) : [];
+}
+
+function saveToHistory(record) {
+  let list = getHistory();
+  list.unshift(record); // เอาอันใหม่ไว้บนสุด
+  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+  renderHistoryUI();
+}
+
+function deleteHistoryItem(id) {
+  let list = getHistory();
+  list = list.filter(item => item.id !== id);
+  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+  renderHistoryUI();
+}
+
+function clearAllHistory() {
+  if (confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) {
+    localStorage.removeItem("GoldZoneHistoryList");
+    renderHistoryUI();
+  }
+}
+
+function reuseData(id) {
+  const list = getHistory();
+  const item = list.find(i => i.id === id);
+  if (item) {
+    document.getElementById("currentPrice").value = item.currentPrice;
+    document.getElementById("ma12").value = item.ma12;
+    document.getElementById("atr14").value = item.atr14;
+    document.getElementById("sd20").value = item.sd20;
+    
+    // คำนวณและแสดงผลทันที
+    renderResultsUI(item);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function renderHistoryUI() {
+  const historyList = document.getElementById("historyList");
+  if (!historyList) return;
+
+  const list = getHistory();
+  if (list.length === 0) {
+    historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">ยังไม่มีประวัติการบันทึก</p>`;
+    return;
+  }
+
+  historyList.innerHTML = list.map(item => `
+    <div class="history-card">
+      <div class="history-card-header">
+        <span class="history-price">💰 ${item.currentPrice.toFixed(2)}</span>
+        <span class="history-time">${formatDate(item.timestamp)}</span>
+      </div>
+      <div class="history-grid">
+        <div class="history-item">
+          <div class="history-item-label">D1 MA12</div>
+          <div class="history-item-val">${item.ma12}</div>
+        </div>
+        <div class="history-item-label history-item">
+          <div class="history-item-label">D1 ATR14</div>
+          <div class="history-item-val">${item.atr14}</div>
+        </div>
+        <div class="history-item">
+          <div class="history-item-label">D1 SD20</div>
+          <div class="history-item-val">${item.sd20}</div>
+        </div>
+        <div class="history-item">
+          <div class="history-item-label">VOLATILITY</div>
+          <div class="history-item-val">${item.features.volatilityRatio}</div>
+        </div>
+      </div>
+      <div class="history-actions">
+        <button class="btn-reuse" onclick="reuseData(${item.id})">🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
+        <button class="btn-delete" onclick="deleteHistoryItem(${item.id})">🗑️ ลบรายการนี้</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// 5. EVENT LISTENERS
 document.addEventListener("DOMContentLoaded", () => {
+  renderHistoryUI(); // โหลดประวัติเมื่อเปิดหน้าเว็บ
+
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
+  const btnClearHistory = document.getElementById("btnClearHistory");
 
   if (btnAnalyze) {
     btnAnalyze.addEventListener("click", () => {
@@ -195,10 +287,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
 
-        // บันทึกลง LocalStorage
-        localStorage.setItem("GoldZoneLatestAnalysis", JSON.stringify(result));
+        // บันทึกลงประวัติ
+        saveToHistory(result);
 
-        // วาดตารางโซนทันที โดยไม่ต้องขึ้น Alert
+        // แสดงผลลัพธ์
         renderResultsUI(result);
 
       } catch (err) {
@@ -206,4 +298,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener("click", clearAllHistory);
+  }
 });
+
+// ส่งออกให้เรียกใช้ผ่าน HTML onclick ได้
+window.reuseData = reuseData;
+window.deleteHistoryItem = deleteHistoryItem;
