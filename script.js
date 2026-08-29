@@ -1,15 +1,18 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (LIVE ENGINE)
+ * GOLD ZONE ANALYZER (LIVE ENGINE) - FIXED
  * ========================================== */
 
-// 1. SUPABASE SETUP
+// 1. SUPABASE SETUP (แก้ไขระบบสร้าง Client ให้เสถียรบน GitHub Pages)
 const SUPABASE_URL = "https://xuxvowhghgndyfsedpzs.supabase.co";
+// หมายเหตุ: หากยังขึ้น Error Load Failed ให้ตรวจสอบว่า Anon Key ใน Dashboard ของ Supabase ตรงกันหรือไม่
 const SUPABASE_ANON_KEY = "sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR";
 
-const supabaseClient =
-  window.supabase && typeof window.supabase.createClient === "function"
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    : null;
+function getSupabaseClient() {
+  if (window.supabase && typeof window.supabase.createClient === "function") {
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return null;
+}
 
 // 2. HELPER FUNCTIONS
 function safeNumber(val, fallback = 0) {
@@ -165,7 +168,8 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
 
 // 5. SUPABASE DB SYNC
 async function saveAnalysisToSupabase(payload) {
-  if (!supabaseClient) return { success: false, error: "Supabase Client Not Ready" };
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: "ไม่พบระบบเชื่อมต่อ Supabase SDK" };
 
   try {
     const record = {
@@ -183,7 +187,7 @@ async function saveAnalysisToSupabase(payload) {
       created_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await client
       .from("gold_settings")
       .insert([record])
       .select();
@@ -192,7 +196,7 @@ async function saveAnalysisToSupabase(payload) {
     return { success: true, data };
   } catch (err) {
     console.error("Supabase Save Error:", err);
-    return { success: false, error: err.message };
+    return { success: false, error: err.message || "การเชื่อมต่อล้มเหลว (CORS/Network Error)" };
   }
 }
 
@@ -215,7 +219,14 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem("GoldZoneLatestAnalysis", JSON.stringify(result));
 
         // ส่งข้อมูลเข้า Supabase
+        btnAnalyze.disabled = true;
+        btnAnalyze.innerText = "กำลังบันทึกข้อมูล...";
+
         const dbRes = await saveAnalysisToSupabase(result);
+        
+        btnAnalyze.disabled = false;
+        btnAnalyze.innerText = "วิเคราะห์และบันทึกข้อมูล";
+
         if (dbRes.success) {
           alert("วิเคราะห์และบันทึกข้อมูลลง Supabase เรียบร้อย!");
         } else {
