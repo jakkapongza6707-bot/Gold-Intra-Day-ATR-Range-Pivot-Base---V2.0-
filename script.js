@@ -1,18 +1,10 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (LIVE ENGINE) - FIXED
+ * GOLD ZONE ANALYZER (LIVE ENGINE) - REST API FIXED
  * ========================================== */
 
-// 1. SUPABASE SETUP (แก้ไขระบบสร้าง Client ให้เสถียรบน GitHub Pages)
+// 1. SUPABASE SETUP
 const SUPABASE_URL = "https://xuxvowhghgndyfsedpzs.supabase.co";
-// หมายเหตุ: หากยังขึ้น Error Load Failed ให้ตรวจสอบว่า Anon Key ใน Dashboard ของ Supabase ตรงกันหรือไม่
 const SUPABASE_ANON_KEY = "sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR";
-
-function getSupabaseClient() {
-  if (window.supabase && typeof window.supabase.createClient === "function") {
-    return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-  return null;
-}
 
 // 2. HELPER FUNCTIONS
 function safeNumber(val, fallback = 0) {
@@ -166,11 +158,8 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   };
 }
 
-// 5. SUPABASE DB SYNC
+// 5. SUPABASE DB SYNC (ยิงตรงผ่าน Direct Fetch REST API)
 async function saveAnalysisToSupabase(payload) {
-  const client = getSupabaseClient();
-  if (!client) return { success: false, error: "ไม่พบระบบเชื่อมต่อ Supabase SDK" };
-
   try {
     const record = {
       current_price: payload.currentPrice,
@@ -187,16 +176,26 @@ async function saveAnalysisToSupabase(payload) {
       created_at: new Date().toISOString()
     };
 
-    const { data, error } = await client
-      .from("gold_settings")
-      .insert([record])
-      .select();
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/gold_settings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify(record)
+    });
 
-    if (error) throw error;
-    return { success: true, data };
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `HTTP status ${response.status}`);
+    }
+
+    return { success: true };
   } catch (err) {
     console.error("Supabase Save Error:", err);
-    return { success: false, error: err.message || "การเชื่อมต่อล้มเหลว (CORS/Network Error)" };
+    return { success: false, error: err.message };
   }
 }
 
