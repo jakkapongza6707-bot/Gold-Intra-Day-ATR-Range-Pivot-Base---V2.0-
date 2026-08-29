@@ -121,6 +121,65 @@ function renderResultsUI(result) {
   resultContainer.style.display = "block";
 }
 
+// ฟังก์ชันจำลองการสแกนตลาด (Scanning Animation)
+function runScanningAnimation(callback) {
+  const scanModal = document.getElementById("scanModal");
+  const progressFill = document.getElementById("progressFill");
+  const progressText = document.getElementById("progressText");
+
+  if (!scanModal) {
+    if (callback) callback();
+    return;
+  }
+
+  scanModal.style.display = "flex";
+  
+  if (progressFill) progressFill.style.width = "0%";
+  if (progressText) progressText.textContent = "0%";
+
+  for (let i = 0; i < 10; i++) {
+    const el = document.getElementById(`chk-${i}`);
+    if (el) {
+      el.className = "scan-item";
+      const icon = el.querySelector(".icon");
+      if (icon) icon.textContent = "○";
+    }
+  }
+
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += 2;
+    if (progress > 100) progress = 100;
+
+    if (progressFill) progressFill.style.width = `${progress}%`;
+    if (progressText) progressText.textContent = `${progress}%`;
+
+    const step = Math.floor(progress / 10);
+    for (let i = 0; i < step && i < 10; i++) {
+      const el = document.getElementById(`chk-${i}`);
+      if (el && !el.classList.contains("done")) {
+        el.className = "scan-item done";
+        const icon = el.querySelector(".icon");
+        if (icon) icon.textContent = "✓";
+      }
+    }
+    if (step < 10) {
+      const activeEl = document.getElementById(`chk-${step}`);
+      if (activeEl && !activeEl.classList.contains("done")) {
+        activeEl.className = "scan-item active";
+      }
+    }
+
+    if (progress >= 100) {
+      clearInterval(interval);
+      setTimeout(() => {
+        scanModal.style.display = "none";
+        if (callback) callback();
+      }, 300);
+    }
+  }, 25);
+}
+
 function getHistory() {
   const history = localStorage.getItem("GoldZoneHistoryList");
   return history ? JSON.parse(history) : [];
@@ -163,7 +222,6 @@ function clearAllHistory() {
   }
 }
 
-// เมื่อกด "กรอกข้อมูลชุดนี้อีกครั้ง" -> นำเลขไปใส่ช่อง Input เท่านั้น (ไม่รันการวิเคราะห์)
 function reuseData(id) {
   const list = getHistory();
   const item = list.find(i => i.id === id);
@@ -173,13 +231,11 @@ function reuseData(id) {
     document.getElementById("atr14").value = item.atr14;
     document.getElementById("sd20").value = item.sd20;
 
-    // ซ่อนผลลัพธ์การวิเคราะห์เดิมออกก่อน
     const resultContainer = document.getElementById("resultContainer");
     if (resultContainer) {
       resultContainer.style.display = "none";
     }
 
-    // เลื่อนหน้าจอขึ้นข้างบนสุด
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
@@ -244,7 +300,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentAnalysisData = null;
 
-  // 1. เมื่อกดปุ่มใหญ่ "วิเคราะห์และบันทึกข้อมูล"
   if (btnAnalyze) {
     btnAnalyze.addEventListener("click", () => {
       try {
@@ -253,10 +308,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const atr = document.getElementById("atr14")?.value;
         const sd = document.getElementById("sd20")?.value;
 
-        // คำนวณเตรียมไว้
         currentAnalysisData = analyzeCurrentMarketInput(cp, ma, atr, sd);
 
-        // เปิด Pop-up ถามความสมัครใจ
         if (confirmModal) {
           confirmModal.style.display = "flex";
         }
@@ -266,24 +319,38 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 2. เมื่อกดปุ่ม "ตกลง" ใน Pop-up -> วิเคราะห์ + บันทึกลงประวัติ
   if (btnConfirmAnalyze) {
     btnConfirmAnalyze.addEventListener("click", () => {
-      if (currentAnalysisData) {
-        renderResultsUI(currentAnalysisData);
-        saveToHistory(currentAnalysisData);
-      }
       confirmModal.style.display = "none";
+      runScanningAnimation(() => {
+        if (currentAnalysisData) {
+          renderResultsUI(currentAnalysisData);
+          saveToHistory(currentAnalysisData);
+          
+          // Smooth Scroll เลื่อนหน้าจอลงไปหาผลลัพธ์อัตโนมัติ
+          const resultContainer = document.getElementById("resultContainer");
+          if (resultContainer) {
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      });
     });
   }
 
-  // 3. เมื่อกดปุ่ม "ยกเลิก" ใน Pop-up -> วิเคราะห์อย่างเดียว (ไม่บันทึก)
   if (btnCancelAnalyze) {
     btnCancelAnalyze.addEventListener("click", () => {
-      if (currentAnalysisData) {
-        renderResultsUI(currentAnalysisData);
-      }
       confirmModal.style.display = "none";
+      runScanningAnimation(() => {
+        if (currentAnalysisData) {
+          renderResultsUI(currentAnalysisData);
+          
+          // Smooth Scroll เลื่อนหน้าจอลงไปหาผลลัพธ์อัตโนมัติ
+          const resultContainer = document.getElementById("resultContainer");
+          if (resultContainer) {
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      });
     });
   }
 
