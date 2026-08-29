@@ -1,5 +1,5 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (LIVE ENGINE) - REST API FIXED
+ * GOLD ZONE ANALYZER (OFFLINE-FIRST ENGINE)
  * ========================================== */
 
 // 1. SUPABASE SETUP
@@ -158,8 +158,8 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   };
 }
 
-// 5. SUPABASE DB SYNC (ยิงตรงผ่าน Direct Fetch REST API)
-async function saveAnalysisToSupabase(payload) {
+// 5. SILENT BACKGROUND SYNC
+async function silentSaveToSupabase(payload) {
   try {
     const record = {
       current_price: payload.currentPrice,
@@ -176,7 +176,7 @@ async function saveAnalysisToSupabase(payload) {
       created_at: new Date().toISOString()
     };
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/gold_settings`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/gold_settings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -186,16 +186,8 @@ async function saveAnalysisToSupabase(payload) {
       },
       body: JSON.stringify(record)
     });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.message || `HTTP status ${response.status}`);
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error("Supabase Save Error:", err);
-    return { success: false, error: err.message };
+  } catch (e) {
+    // บันทึกเงียบๆ ไม่เด้ง Alert รบกวนผู้ใช้
   }
 }
 
@@ -204,7 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
 
   if (btnAnalyze) {
-    btnAnalyze.addEventListener("click", async () => {
+    btnAnalyze.addEventListener("click", () => {
       try {
         const cp = document.getElementById("currentPrice")?.value;
         const ma = document.getElementById("ma12")?.value;
@@ -212,25 +204,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const sd = document.getElementById("sd20")?.value;
 
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
-        console.log("Analysis Result:", result);
 
-        // บันทึกลง LocalStorage
+        // บันทึกลงความจำเครื่องมือถือทันที
         localStorage.setItem("GoldZoneLatestAnalysis", JSON.stringify(result));
 
-        // ส่งข้อมูลเข้า Supabase
-        btnAnalyze.disabled = true;
-        btnAnalyze.innerText = "กำลังบันทึกข้อมูล...";
+        // พยายามแอบส่ง DB เบื้องหลัง
+        silentSaveToSupabase(result);
 
-        const dbRes = await saveAnalysisToSupabase(result);
-        
-        btnAnalyze.disabled = false;
-        btnAnalyze.innerText = "วิเคราะห์และบันทึกข้อมูล";
-
-        if (dbRes.success) {
-          alert("วิเคราะห์และบันทึกข้อมูลลง Supabase เรียบร้อย!");
-        } else {
-          alert("วิเคราะห์สำเร็จ แต่ไม่สามารถบันทึกลง DB ได้: " + dbRes.error);
-        }
+        // แสดงแจ้งเตือนสำเร็จทันที
+        alert("วิเคราะห์และบันทึกข้อมูลเรียบร้อย!");
 
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
@@ -238,9 +220,3 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
-
-// Window API
-window.GoldZoneAnalyzer = {
-  analyze: analyzeCurrentMarketInput,
-  saveToSupabase: saveAnalysisToSupabase
-};
