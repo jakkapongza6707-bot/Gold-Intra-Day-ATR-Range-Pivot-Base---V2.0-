@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gold Zone Analyzer</title>
+  <title>Gold Zone Analyzer Pro</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #121212; color: #e0e0e0; }
-    .card { max-width: 480px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #2d2d2d; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #121212; color: #e0e0e0; margin: 0; }
+    .card { max-width: 500px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #2d2d2d; }
     h2, h3 { text-align: center; margin-top: 0; color: #fff; }
     .form-group { margin-bottom: 12px; }
     label { display: block; margin-bottom: 4px; font-size: 13px; color: #a0a0a0; }
@@ -18,15 +18,23 @@
 
     /* Zone Result Styling */
     #resultContainer { margin-top: 25px; display: none; }
-    .status-badge { text-align: center; padding: 8px; border-radius: 6px; background: #2a2a2a; font-weight: bold; margin-bottom: 15px; font-size: 14px; color: #ecc94b; border: 1px solid #3d3d3d; }
+    .status-badge { text-align: center; padding: 8px; border-radius: 6px; background: #2a2a2a; font-weight: bold; margin-bottom: 15px; font-size: 13px; color: #ecc94b; border: 1px solid #3d3d3d; }
+    
     .zone-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .zone-table th, .zone-table td { padding: 8px; text-align: center; border-bottom: 1px solid #2d2d2d; font-size: 13px; }
-    .zone-table th { background: #252525; color: #a0a0a0; }
-    .type-resistance { color: #fc8181; font-weight: bold; }
-    .type-support { color: #68d391; font-weight: bold; }
-    .badge-strong { background: #22543d; color: #9ae6b4; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
-    .badge-moderate { background: #744210; color: #fbd38d; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
-    .badge-weak { background: #742a2a; color: #feb2b2; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    .zone-table th, .zone-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #2d2d2d; font-size: 12px; }
+    .zone-table th { background: #252525; color: #a0a0a0; text-align: center; }
+    
+    /* Rows highlight */
+    .row-anchor { background: rgba(49, 130, 206, 0.15); }
+    .row-max { background: rgba(221, 107, 32, 0.2); }
+    .row-min { background: rgba(221, 107, 32, 0.2); }
+    
+    .price-text { font-weight: bold; font-size: 13px; color: #fff; }
+    .orange-highlight { color: #f6ad55; font-weight: bold; }
+
+    /* Summary Card Styling */
+    .summary-card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-top: 15px; font-size: 12px; line-height: 1.6; }
+    .summary-title { font-weight: bold; color: #ecc94b; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
 
     /* History Section Styling */
     .history-section { margin-top: 30px; border-top: 1px dashed #3d3d3d; padding-top: 20px; }
@@ -53,26 +61,26 @@
 <body>
 
   <div class="card">
-    <h2> Gold Zone Analyzer</h2>
+    <h2>📊 Gold Zone Analyzer Pro</h2>
     
     <div class="form-group">
-      <label for="currentPrice">Current Price (ราคาปัจจุบัน):</label>
-      <input type="number" id="currentPrice" placeholder="เช่น 2650" step="any">
+      <label for="currentPrice">Anchor Base / Open Price (ราคาเปิดประจำวัน):</label>
+      <input type="number" id="currentPrice" placeholder="เช่น 4640.00" step="any">
     </div>
 
     <div class="form-group">
       <label for="ma12">D1 MA12:</label>
-      <input type="number" id="ma12" placeholder="เช่น 2640" step="any">
+      <input type="number" id="ma12" placeholder="เช่น 4449.708" step="any">
     </div>
 
     <div class="form-group">
       <label for="atr14">D1 ATR14:</label>
-      <input type="number" id="atr14" placeholder="เช่น 25" step="any">
+      <input type="number" id="atr14" placeholder="เช่น 88.814" step="any">
     </div>
 
     <div class="form-group">
       <label for="sd20">D1 SD20:</label>
-      <input type="number" id="sd20" placeholder="เช่น 30" step="any">
+      <input type="number" id="sd20" placeholder="เช่น 165.0558" step="any">
     </div>
 
     <button id="btnAnalyzeMarket" class="btn-main">วิเคราะห์และบันทึกข้อมูล</button>
@@ -80,19 +88,25 @@
     <!-- ผลการวิเคราะห์ปัจจุบัน -->
     <div id="resultContainer">
       <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-      <h3>ผลการวิเคราะห์โซน</h3>
+      <h3>📊 INTRA-DAY ATR ZONES (9 ระดับ)</h3>
       <div id="statusRegime" class="status-badge"></div>
 
       <table class="zone-table">
         <thead>
           <tr>
-            <th>ชื่อโซน</th>
-            <th>ราคา</th>
-            <th>ความแข็งแกร่ง</th>
+            <th style="width: 25%;">Zone Level</th>
+            <th style="width: 25%;">ราคา Zone</th>
+            <th style="width: 50%;">ความหมายทาง Intraday</th>
           </tr>
         </thead>
         <tbody id="zonesTableBody"></tbody>
       </table>
+
+      <!-- สรุปพิกัดสำคัญ -->
+      <div class="summary-card">
+        <div class="summary-title">📌 สรุปพิกัดสำคัญ (ครบ 9 ระดับ)</div>
+        <div id="summaryContent"></div>
+      </div>
     </div>
 
     <!-- ส่วนประวัติการบันทึก -->
@@ -107,6 +121,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=5"></script>
+  <script src="script.js?v=6"></script>
 </body>
 </html>
