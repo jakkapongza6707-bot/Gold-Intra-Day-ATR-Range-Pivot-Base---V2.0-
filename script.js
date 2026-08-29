@@ -1,206 +1,297 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gold Zone Analyzer Pro</title>
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background-color: #121212; color: #e0e0e0; margin: 0; }
-    .card { max-width: 500px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #2d2d2d; }
-    h2, h3 { text-align: center; margin-top: 0; color: #fff; }
-    .form-group { margin-bottom: 12px; }
-    label { display: block; margin-bottom: 4px; font-size: 13px; color: #a0a0a0; }
-    input { width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 6px; font-size: 16px; color: #fff; }
-    input:focus { border-color: #3182ce; outline: none; }
-    
-    .btn-main { width: 100%; padding: 12px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; }
-    .btn-main:hover { background: #2b6cb0; }
+/* ==========================================
+ * GOLD ZONE ANALYZER PRO — INTRADAY ATR ZONES
+ * ========================================== */
 
-    /* Zone Result Styling */
-    #resultContainer { margin-top: 25px; display: none; }
-    .status-badge { text-align: center; padding: 8px; border-radius: 6px; background: #2a2a2a; font-weight: bold; margin-bottom: 15px; font-size: 13px; color: #ecc94b; border: 1px solid #3d3d3d; }
-    
-    .zone-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .zone-table th, .zone-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #2d2d2d; font-size: 12px; }
-    .zone-table th { background: #252525; color: #a0a0a0; text-align: center; }
-    
-    /* Rows highlight */
-    .row-anchor { background: rgba(49, 130, 206, 0.15); }
-    .row-max { background: rgba(221, 107, 32, 0.2); }
-    .row-min { background: rgba(221, 107, 32, 0.2); }
-    
-    .price-text { font-weight: bold; font-size: 13px; color: #fff; }
-    .orange-highlight { color: #f6ad55; font-weight: bold; }
+function safeNumber(val, fallback = 0) {
+  const n = parseFloat(val);
+  return Number.isFinite(n) ? n : fallback;
+}
 
-    /* Summary Card Styling */
-    .summary-card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-top: 15px; font-size: 12px; line-height: 1.6; }
-    .summary-title { font-weight: bold; color: #ecc94b; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+function round(val, dec = 2) {
+  const n = safeNumber(val, 0);
+  return Number(n.toFixed(dec));
+}
 
-    /* History Section Styling */
-    .history-section { margin-top: 30px; border-top: 1px dashed #3d3d3d; padding-top: 20px; }
-    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-    .btn-clear-all { background: #e53e3e; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-    
-    .history-card { background: #252525; border: 1px solid #333; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-    .history-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 10px; }
-    .history-price { font-size: 18px; font-weight: bold; color: #ecc94b; }
-    
-    .date-edit-box { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; background: #1a1a1a; padding: 6px; border-radius: 6px; border: 1px solid #333; }
-    .date-edit-box label { margin: 0; font-size: 11px; color: #888; white-space: nowrap; }
-    .date-input { padding: 4px 6px !important; font-size: 12px !important; background: #2a2a2a !important; color: #ecc94b !important; border: 1px solid #444 !important; border-radius: 4px; }
-    .btn-save-date { background: #38a169; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; white-space: nowrap; }
-    .btn-save-date:hover { background: #2f855a; }
+function formatISOToInput(isoString) {
+  const d = new Date(isoString);
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+}
 
-    .history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-    .history-item { background: #1a1a1a; padding: 6px 8px; border-radius: 4px; border: 1px solid #2d2d2d; }
-    .history-item-label { font-size: 10px; color: #a0a0a0; }
-    .history-item-val { font-size: 13px; font-weight: bold; color: #ecc94b; }
+function getVolatilityRegime(sd20, atr14) {
+  const sd = safeNumber(sd20, 0);
+  const atr = safeNumber(atr14, 0);
+  if (atr <= 0) return { ratio: 0, text: "Normal" };
 
-    .history-actions { display: flex; gap: 8px; margin-top: 8px; }
-    .btn-reuse { flex: 2; background: #2b6cb0; color: white; border: none; padding: 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
-    .btn-delete { flex: 1; background: #333; color: #fc8181; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-    .btn-reuse:hover { background: #3182ce; }
-    .btn-delete:hover { background: #e53e3e; color: white; }
+  const ratio = sd / atr;
+  if (ratio >= 2.0) return { ratio: round(ratio, 2), text: "Extreme Volatility" };
+  if (ratio >= 1.3) return { ratio: round(ratio, 2), text: "High Volatility" };
+  if (ratio >= 0.8) return { ratio: round(ratio, 2), text: "Normal" };
+  return { ratio: round(ratio, 2), text: "Low Volatility" };
+}
 
-    /* Modal Styling General */
-    .modal-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.75); display: flex; justify-content: center;
-      align-items: center; z-index: 9999; backdrop-filter: blur(3px);
+function calculateIntradayZones(anchorPrice, atr14) {
+  const base = safeNumber(anchorPrice, 0);
+  const atr = safeNumber(atr14, 0);
+
+  const p100_up = base + (atr * 1.00);
+  const p060_up = base + (atr * 0.60);
+  const p050_up = base + (atr * 0.50);
+  const p025_up = base + (atr * 0.25);
+
+  const p025_dn = base - (atr * 0.25);
+  const p050_dn = base - (atr * 0.50);
+  const p060_dn = base - (atr * 0.60);
+  const p100_dn = base - (atr * 1.00);
+
+  return [
+    { level: "+1.00 ATR", price: round(p100_up), desc: "แนวต้านขอบบน ATR 100%", type: "normal" },
+    { level: "+0.60 ATR (Daily Max)", price: round(p060_up), desc: `🟠 วงกลมส้มบน (แนวต้านไฮประจำวัน ${round(p050_up)}–${round(p060_up)})`, type: "max" },
+    { level: "+0.50 ATR", price: round(p050_up), desc: "โซนเริ่มชะลอตัวฝั่งขาขึ้น", type: "normal" },
+    { level: "+0.25 ATR", price: round(p025_up), desc: "โซนต้านย่อยระหว่างวัน", type: "normal" },
+    { level: "ANCHOR BASE", price: round(base), desc: "จุดสมดุลราคาเปิดประจำวัน", type: "anchor" },
+    { level: "-0.25 ATR", price: round(p025_dn), desc: "โซนรับย่อยระหว่างวัน", type: "normal" },
+    { level: "-0.50 ATR", price: round(p050_dn), desc: "โซนเริ่มชะลอตัวฝั่งขาลง", type: "normal" },
+    { level: "-0.60 ATR (Daily Min)", price: round(p060_dn), desc: `🟠 วงกลมส้มล่าง (แนวรับโลว์ประจำวัน ${round(p060_dn)}–${round(p050_dn)})`, type: "min" },
+    { level: "-1.00 ATR", price: round(p100_dn), desc: "แนวรับขอบล่าง ATR 100%", type: "normal" }
+  ];
+}
+
+function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
+  const currentPrice = safeNumber(cpInput, 0);
+  const ma12 = safeNumber(maInput, 0);
+  const atr14 = safeNumber(atrInput, 0);
+  const sd20 = safeNumber(sdInput, 0);
+
+  if (currentPrice <= 0 || ma12 <= 0 || atr14 <= 0 || sd20 <= 0) {
+    throw new Error("กรุณากรอกข้อมูลตัวเลขที่มากกว่า 0 ให้ครบถ้วน");
+  }
+
+  const regime = getVolatilityRegime(sd20, atr14);
+  const zones = calculateIntradayZones(currentPrice, atr14);
+
+  return {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    currentPrice,
+    ma12,
+    atr14,
+    sd20,
+    regime,
+    zones
+  };
+}
+
+function renderResultsUI(result) {
+  const resultContainer = document.getElementById("resultContainer");
+  const statusRegime = document.getElementById("statusRegime");
+  const zonesTableBody = document.getElementById("zonesTableBody");
+  const summaryContent = document.getElementById("summaryContent");
+
+  if (!resultContainer || !zonesTableBody || !statusRegime || !summaryContent) return;
+
+  statusRegime.innerText = `Anchor Base (D1 Open): ${result.currentPrice.toFixed(2)} | D1 ATR14: ${result.atr14.toFixed(4)}`;
+
+  zonesTableBody.innerHTML = result.zones.map(z => {
+    let rowClass = "";
+    if (z.type === "anchor") rowClass = "row-anchor";
+    else if (z.type === "max") rowClass = "row-max";
+    else if (z.type === "min") rowClass = "row-min";
+
+    const descHtml = z.desc.includes("🟠") 
+      ? `<span class="orange-highlight">${z.desc}</span>`
+      : z.desc;
+
+    return `
+      <tr class="${rowClass}">
+        <td><strong>${z.level}</strong></td>
+        <td class="price-text">${z.price.toFixed(2)}</td>
+        <td>${descHtml}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const z = result.zones;
+  summaryContent.innerHTML = `
+    <div>🔴 <strong>วงกลมส้มบน (แนวต้านไฮ):</strong> ${z[2].price.toFixed(2)} – ${z[1].price.toFixed(2)} (+0.50 ถึง +0.60 ATR)</div>
+    <div>⚪ <strong>จุดรับ/ต้านย่อยในวัน:</strong> ${z[3].price.toFixed(2)} (+0.25 ATR) และ ${z[5].price.toFixed(2)} (-0.25 ATR)</div>
+    <div>🟢 <strong>วงกลมส้มล่าง (แนวรับโลว์):</strong> ${z[7].price.toFixed(2)} – ${z[6].price.toFixed(2)} (-0.50 ถึง -0.60 ATR)</div>
+  `;
+
+  resultContainer.style.display = "block";
+}
+
+function getHistory() {
+  const history = localStorage.getItem("GoldZoneHistoryList");
+  return history ? JSON.parse(history) : [];
+}
+
+function saveToHistory(record) {
+  let list = getHistory();
+  list.unshift(record);
+  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+  renderHistoryUI();
+}
+
+function updateHistoryDate(id) {
+  const newDateVal = document.getElementById(`date-input-${id}`)?.value;
+  if (!newDateVal) return;
+
+  let list = getHistory();
+  const index = list.findIndex(item => item.id === id);
+  if (index !== -1) {
+    list[index].timestamp = new Date(newDateVal).toISOString();
+    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+    alert("อัปเดตวันที่เรียบร้อยแล้ว!");
+    renderHistoryUI();
+  }
+}
+
+function deleteHistoryItem(id) {
+  if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
+    let list = getHistory();
+    list = list.filter(item => item.id !== id);
+    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+    renderHistoryUI();
+  }
+}
+
+function clearAllHistory() {
+  if (confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) {
+    localStorage.removeItem("GoldZoneHistoryList");
+    renderHistoryUI();
+  }
+}
+
+// เมื่อกด "กรอกข้อมูลชุดนี้อีกครั้ง" -> นำเลขไปใส่ช่อง Input เท่านั้น (ไม่รันการวิเคราะห์)
+function reuseData(id) {
+  const list = getHistory();
+  const item = list.find(i => i.id === id);
+  if (item) {
+    document.getElementById("currentPrice").value = item.currentPrice;
+    document.getElementById("ma12").value = item.ma12;
+    document.getElementById("atr14").value = item.atr14;
+    document.getElementById("sd20").value = item.sd20;
+
+    // ซ่อนผลลัพธ์การวิเคราะห์เดิมออกก่อน
+    const resultContainer = document.getElementById("resultContainer");
+    if (resultContainer) {
+      resultContainer.style.display = "none";
     }
-    .modal-box {
-      background: #181920; border: 1px solid #2a2d3a; border-radius: 16px;
-      padding: 24px; width: 88%; max-width: 380px; text-align: center;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
-    }
-    .modal-box h3 { color: #fff; font-size: 16px; font-weight: 500; margin-bottom: 20px; line-height: 1.4; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 15px; }
-    .btn-modal { background: none; border: none; font-size: 15px; font-weight: 600; padding: 8px 16px; cursor: pointer; border-radius: 6px; }
-    .btn-cancel { color: #88aaff; }
-    .btn-confirm { color: #88aaff; }
 
-    /* Scanning Modal Specific Styling */
-    .scan-icon { font-size: 40px; margin-bottom: 8px; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-    .scan-title { font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 1.5px; margin: 0; }
-    .scan-sub { font-size: 12px; color: #718096; margin-top: 4px; margin-bottom: 16px; }
-    
-    .scan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-    .scan-item {
-      background: #20232d; border: 1px solid #2d3142; border-radius: 8px; padding: 8px 10px;
-      font-size: 11px; font-weight: bold; color: #4a5568; display: flex; align-items: center; gap: 6px;
-      transition: all 0.3s ease;
-    }
-    .scan-item.active { color: #e2e8f0; border-color: #319795; }
-    .scan-item.done { color: #319795; border-color: #319795; background: rgba(49, 151, 149, 0.1); }
-    .scan-item .icon { font-size: 12px; }
+    // เลื่อนหน้าจอขึ้นข้างบนสุด
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
 
-    .progress-bar-container { background: #20232d; border-radius: 10px; height: 6px; overflow: hidden; margin-bottom: 8px; }
-    .progress-bar-fill { background: linear-gradient(90deg, #3182ce, #319795); width: 0%; height: 100%; transition: width 0.1s ease; }
-    .progress-text { font-size: 12px; font-weight: bold; color: #a0aec0; }
-  </style>
-</head>
-<body>
+function renderHistoryUI() {
+  const historyList = document.getElementById("historyList");
+  if (!historyList) return;
 
-  <div class="card">
-    <h2>📊 Gold Zone Analyzer Pro</h2>
-    
-    <div class="form-group">
-      <label for="currentPrice">Anchor Base / Open Price (ราคาเปิดประจำวัน):</label>
-      <input type="number" id="currentPrice" placeholder="เช่น 4640.00" step="any">
-    </div>
+  const list = getHistory();
+  if (list.length === 0) {
+    historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">ยังไม่มีประวัติการบันทึก</p>`;
+    return;
+  }
 
-    <div class="form-group">
-      <label for="ma12">D1 MA12:</label>
-      <input type="number" id="ma12" placeholder="เช่น 4449.708" step="any">
-    </div>
-
-    <div class="form-group">
-      <label for="atr14">D1 ATR14:</label>
-      <input type="number" id="atr14" placeholder="เช่น 88.814" step="any">
-    </div>
-
-    <div class="form-group">
-      <label for="sd20">D1 SD20:</label>
-      <input type="number" id="sd20" placeholder="เช่น 165.0558" step="any">
-    </div>
-
-    <button id="btnAnalyzeMarket" class="btn-main">วิเคราะห์และบันทึกข้อมูล</button>
-
-    <!-- ผลการวิเคราะห์ปัจจุบัน -->
-    <div id="resultContainer">
-      <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-      <h3>📊 INTRA-DAY ATR ZONES (9 ระดับ)</h3>
-      <div id="statusRegime" class="status-badge"></div>
-
-      <table class="zone-table">
-        <thead>
-          <tr>
-            <th style="width: 25%;">Zone Level</th>
-            <th style="width: 25%;">ราคา Zone</th>
-            <th style="width: 50%;">ความหมายทาง Intraday</th>
-          </tr>
-        </thead>
-        <tbody id="zonesTableBody"></tbody>
-      </table>
-
-      <!-- สรุปพิกัดสำคัญ -->
-      <div class="summary-card">
-        <div class="summary-title">📌 สรุปพิกัดสำคัญ (ครบ 9 ระดับ)</div>
-        <div id="summaryContent"></div>
-      </div>
-    </div>
-
-    <!-- ส่วนประวัติการบันทึก -->
-    <div class="history-section">
-      <div class="history-header">
-        <h3>ประวัติการบันทึก</h3>
-        <button id="btnClearHistory" class="btn-clear-all">ล้างทั้งหมด</button>
-      </div>
-      <div id="historyList">
-        <!--รายการประวัติจะแสดงตรงนี้-->
-      </div>
-    </div>
-  </div>
-
-  <!-- Pop-up Confirmation Modal -->
-  <div id="confirmModal" class="modal-overlay" style="display: none;">
-    <div class="modal-box">
-      <h3>ต้องการเริ่มวิเคราะห์และบันทึกข้อมูลหรือไม่?</h3>
-      <div class="modal-actions">
-        <button id="btnCancelAnalyze" class="btn-modal btn-cancel">ยกเลิก</button>
-        <button id="btnConfirmAnalyze" class="btn-modal btn-confirm">ตกลง</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Pop-up Scanning Animation Modal -->
-  <div id="scanModal" class="modal-overlay" style="display: none;">
-    <div class="modal-box">
-      <div class="scan-icon">🔍</div>
-      <div class="scan-title">SCANNING MARKET</div>
-      <div class="scan-sub">กำลังตรวจสอบ Market Conditions...</div>
-      
-      <div class="scan-grid">
-        <div class="scan-item" id="chk-0"><span class="icon">○</span> PRICE</div>
-        <div class="scan-item" id="chk-1"><span class="icon">○</span> D1 DATA</div>
-        <div class="scan-item" id="chk-2"><span class="icon">○</span> D1 ATR / SD</div>
-        <div class="scan-item" id="chk-3"><span class="icon">○</span> W1 DATA</div>
-        <div class="scan-item" id="chk-4"><span class="icon">○</span> W1 ATR / SD</div>
-        <div class="scan-item" id="chk-5"><span class="icon">○</span> ZONES</div>
-        <div class="scan-item" id="chk-6"><span class="icon">○</span> ZONE STRENGTH</div>
-        <div class="scan-item" id="chk-7"><span class="icon">○</span> VOLATILITY</div>
-        <div class="scan-item" id="chk-8"><span class="icon">○</span> MARKET POSITION</div>
-        <div class="scan-item" id="chk-9"><span class="icon">○</span> FINAL ANALYSIS</div>
+  historyList.innerHTML = list.map(item => `
+    <div class="history-card">
+      <div class="history-card-header">
+        <span class="history-price">💰 Anchor: ${item.currentPrice.toFixed(2)}</span>
       </div>
 
-      <div class="progress-bar-container">
-        <div id="progressFill" class="progress-bar-fill"></div>
+      <div class="date-edit-box">
+        <label>📅 วันที่บันทึก:</label>
+        <input type="datetime-local" id="date-input-${item.id}" class="date-input" value="${formatISOToInput(item.timestamp)}">
+        <button class="btn-save-date" onclick="updateHistoryDate(${item.id})">💾 บันทึกวันที่</button>
       </div>
-      <div id="progressText" class="progress-text">0%</div>
-    </div>
-  </div>
 
-  <script src="script.js?v=1002"></script>
-</body>
-</html>
+      <div class="history-grid">
+        <div class="history-item">
+          <div class="history-item-label">D1 MA12</div>
+          <div class="history-item-val">${item.ma12}</div>
+        </div>
+        <div class="history-item">
+          <div class="history-item-label">D1 ATR14</div>
+          <div class="history-item-val">${item.atr14}</div>
+        </div>
+        <div class="history-item">
+          <div class="history-item-label">D1 SD20</div>
+          <div class="history-item-val">${item.sd20}</div>
+        </div>
+        <div class="history-item">
+          <div class="history-item-label">VOLATILITY</div>
+          <div class="history-item-val">${item.regime ? item.regime.ratio : '-'}</div>
+        </div>
+      </div>
+      <div class="history-actions">
+        <button class="btn-reuse" onclick="reuseData(${item.id})">🔄 กรอกข้อมูลชุดนี้อีกครั้ง</button>
+        <button class="btn-delete" onclick="deleteHistoryItem(${item.id})">🗑️ ลบ</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  renderHistoryUI();
+
+  const btnAnalyze = document.getElementById("btnAnalyzeMarket");
+  const btnClearHistory = document.getElementById("btnClearHistory");
+
+  const confirmModal = document.getElementById("confirmModal");
+  const btnCancelAnalyze = document.getElementById("btnCancelAnalyze");
+  const btnConfirmAnalyze = document.getElementById("btnConfirmAnalyze");
+
+  let currentAnalysisData = null;
+
+  // 1. เมื่อกดปุ่มใหญ่ "วิเคราะห์และบันทึกข้อมูล"
+  if (btnAnalyze) {
+    btnAnalyze.addEventListener("click", () => {
+      try {
+        const cp = document.getElementById("currentPrice")?.value;
+        const ma = document.getElementById("ma12")?.value;
+        const atr = document.getElementById("atr14")?.value;
+        const sd = document.getElementById("sd20")?.value;
+
+        // คำนวณเตรียมไว้
+        currentAnalysisData = analyzeCurrentMarketInput(cp, ma, atr, sd);
+
+        // เปิด Pop-up ถามความสมัครใจ
+        if (confirmModal) {
+          confirmModal.style.display = "flex";
+        }
+      } catch (err) {
+        alert("ข้อผิดพลาด: " + err.message);
+      }
+    });
+  }
+
+  // 2. เมื่อกดปุ่ม "ตกลง" ใน Pop-up -> วิเคราะห์ + บันทึกลงประวัติ
+  if (btnConfirmAnalyze) {
+    btnConfirmAnalyze.addEventListener("click", () => {
+      if (currentAnalysisData) {
+        renderResultsUI(currentAnalysisData);
+        saveToHistory(currentAnalysisData);
+      }
+      confirmModal.style.display = "none";
+    });
+  }
+
+  // 3. เมื่อกดปุ่ม "ยกเลิก" ใน Pop-up -> วิเคราะห์อย่างเดียว (ไม่บันทึก)
+  if (btnCancelAnalyze) {
+    btnCancelAnalyze.addEventListener("click", () => {
+      if (currentAnalysisData) {
+        renderResultsUI(currentAnalysisData);
+      }
+      confirmModal.style.display = "none";
+    });
+  }
+
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener("click", clearAllHistory);
+  }
+});
+
+window.reuseData = reuseData;
+window.deleteHistoryItem = deleteHistoryItem;
+window.updateHistoryDate = updateHistoryDate;
