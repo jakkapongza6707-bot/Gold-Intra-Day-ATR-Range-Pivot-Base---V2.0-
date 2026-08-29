@@ -1,5 +1,5 @@
 /* ==========================================
- * GOLD ZONE ANALYZER (LOCAL STORAGE VERSION)
+ * GOLD ZONE ANALYZER (FULL RENDER FIX)
  * ========================================== */
 
 // 1. HELPER FUNCTIONS
@@ -121,7 +121,6 @@ function scoreZoneStrength(zone, currentPrice, ma12, atr14, sd20) {
   };
 }
 
-// 3. MAIN ANALYZER FUNCTION
 function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   const currentPrice = safeNumber(cpInput, 0);
   const ma12 = safeNumber(maInput, 0);
@@ -154,6 +153,34 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   };
 }
 
+// 3. UI RENDER FUNCTION
+function renderResultsUI(result) {
+  const resultContainer = document.getElementById("resultContainer");
+  const statusRegime = document.getElementById("statusRegime");
+  const zonesTableBody = document.getElementById("zonesTableBody");
+
+  if (!resultContainer || !zonesTableBody || !statusRegime) return;
+
+  statusRegime.innerText = `สภาวะตลาด: ${result.features.volatilityText} (Ratio: ${result.features.volatilityRatio})`;
+
+  zonesTableBody.innerHTML = result.zones.map(zone => {
+    const typeClass = zone.type === "Resistance" ? "type-resistance" : "type-support";
+    let badgeClass = "badge-weak";
+    if (zone.score >= 80) badgeClass = "badge-strong";
+    else if (zone.score >= 65) badgeClass = "badge-moderate";
+
+    return `
+      <tr>
+        <td class="${typeClass}">${zone.name}</td>
+        <td><strong>${zone.price}</strong></td>
+        <td><span class="${badgeClass}">${zone.strengthLabel} (${zone.score})</span></td>
+      </tr>
+    `;
+  }).join("");
+
+  resultContainer.style.display = "block";
+}
+
 // 4. UI EVENT HANDLER
 document.addEventListener("DOMContentLoaded", () => {
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
@@ -168,11 +195,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const result = analyzeCurrentMarketInput(cp, ma, atr, sd);
 
-        // บันทึกลงความจำเครื่อง (LocalStorage)
+        // บันทึกลง LocalStorage
         localStorage.setItem("GoldZoneLatestAnalysis", JSON.stringify(result));
 
-        // แสดงผลสำเร็จ
-        alert("วิเคราะห์และบันทึกข้อมูลสำเร็จ!");
+        // วาดตารางโซนทันที โดยไม่ต้องขึ้น Alert
+        renderResultsUI(result);
 
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
