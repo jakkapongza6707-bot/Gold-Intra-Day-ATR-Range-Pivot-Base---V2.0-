@@ -1,6 +1,12 @@
 /* ==========================================
- * GOLD ZONE ANALYZER PRO — INTRADAY ATR ZONES
+ * GOLD ZONE ANALYZER PRO — AUTO SYNC (NO LOGIN)
  * ========================================== */
+
+const SUPABASE_URL = 'https://ctolckvhfojrchzjaqyo.supabase.co';
+const SUPABASE_ANON_KEY = 'Sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR';
+const SHARED_KEY = 'jakkapong_gold_device'; // รหัสอ้างอิงกลางเชื่อมระหว่างไอแพดกับมือถือ
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function safeNumber(val, fallback = 0) {
   const n = parseFloat(val);
@@ -22,7 +28,6 @@ function getVolatilityRegime(sd20, atr14) {
   const sd = safeNumber(sd20, 0);
   const atr = safeNumber(atr14, 0);
   if (atr <= 0) return { ratio: 0, text: "Normal" };
-
   const ratio = sd / atr;
   if (ratio >= 2.0) return { ratio: round(ratio, 2), text: "Extreme Volatility" };
   if (ratio >= 1.3) return { ratio: round(ratio, 2), text: "High Volatility" };
@@ -71,7 +76,6 @@ function analyzeCurrentMarketInput(cpInput, maInput, atrInput, sdInput) {
   const zones = calculateIntradayZones(currentPrice, atr14);
 
   return {
-    id: Date.now(),
     timestamp: new Date().toISOString(),
     currentPrice,
     ma12,
@@ -121,7 +125,6 @@ function renderResultsUI(result) {
   resultContainer.style.display = "block";
 }
 
-// ฟังก์ชันจำลองการสแกนตลาด (Scanning Animation)
 function runScanningAnimation(callback) {
   const scanModal = document.getElementById("scanModal");
   const progressFill = document.getElementById("progressFill");
@@ -133,7 +136,6 @@ function runScanningAnimation(callback) {
   }
 
   scanModal.style.display = "flex";
-  
   if (progressFill) progressFill.style.width = "0%";
   if (progressText) progressText.textContent = "0%";
 
@@ -150,7 +152,6 @@ function runScanningAnimation(callback) {
   const interval = setInterval(() => {
     progress += 2;
     if (progress > 100) progress = 100;
-
     if (progressFill) progressFill.style.width = `${progress}%`;
     if (progressText) progressText.textContent = `${progress}%`;
 
@@ -180,71 +181,76 @@ function runScanningAnimation(callback) {
   }, 25);
 }
 
-function getHistory() {
-  const history = localStorage.getItem("GoldZoneHistoryList");
-  return history ? JSON.parse(history) : [];
-}
-
-function saveToHistory(record) {
-  let list = getHistory();
-  list.unshift(record);
-  localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+// ระบบ Cloud Functions แบบไม่ต้อง Login
+async function saveToCloud(record) {
+  await supabaseClient.from('gold_history').insert([{
+    device_key: SHARED_KEY,
+    timestamp: record.timestamp,
+    current_price: record.currentPrice,
+    ma12: record.ma12,
+    atr14: record.atr14,
+    sd20: record.sd20
+  }]);
   renderHistoryUI();
 }
 
-function updateHistoryDate(id) {
+async function getHistoryFromCloud() {
+  const { data, error } = await supabaseClient
+    .from('gold_history')
+    .select('*')
+    .eq('device_key', SHARED_KEY)
+    .order('timestamp', { ascending: false });
+  return error ? [] : data;
+}
+
+async function updateHistoryDate(id) {
   const newDateVal = document.getElementById(`date-input-${id}`)?.value;
   if (!newDateVal) return;
-
-  let list = getHistory();
-  const index = list.findIndex(item => item.id === id);
-  if (index !== -1) {
-    list[index].timestamp = new Date(newDateVal).toISOString();
-    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+  const newIsoString = new Date(newDateVal).toISOString();
+  
+  const { error } = await supabaseClient.from('gold_history').update({ timestamp: newIsoString }).eq('id', id);
+  if (error) {
+    alert("อัปเดตไม่สำเร็จ: " + error.message);
+  } else {
     alert("อัปเดตวันที่เรียบร้อยแล้ว!");
     renderHistoryUI();
   }
 }
 
-function deleteHistoryItem(id) {
+async function deleteHistoryItem(id) {
   if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
-    let list = getHistory();
-    list = list.filter(item => item.id !== id);
-    localStorage.setItem("GoldZoneHistoryList", JSON.stringify(list));
+    await supabaseClient.from('gold_history').delete().eq('id', id);
     renderHistoryUI();
   }
 }
 
-function clearAllHistory() {
+async function clearAllHistory() {
   if (confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) {
-    localStorage.removeItem("GoldZoneHistoryList");
+    await supabaseClient.from('gold_history').delete().eq('device_key', SHARED_KEY);
     renderHistoryUI();
   }
 }
 
-function reuseData(id) {
-  const list = getHistory();
+async function reuseData(id) {
+  const list = await getHistoryFromCloud();
   const item = list.find(i => i.id === id);
   if (item) {
-    document.getElementById("currentPrice").value = item.currentPrice;
+    document.getElementById("currentPrice").value = item.current_price;
     document.getElementById("ma12").value = item.ma12;
     document.getElementById("atr14").value = item.atr14;
     document.getElementById("sd20").value = item.sd20;
 
     const resultContainer = document.getElementById("resultContainer");
-    if (resultContainer) {
-      resultContainer.style.display = "none";
-    }
-
+    if (resultContainer) resultContainer.style.display = "none";
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
 
-function renderHistoryUI() {
+async function renderHistoryUI() {
   const historyList = document.getElementById("historyList");
   if (!historyList) return;
 
-  const list = getHistory();
+  const list = await getHistoryFromCloud();
   if (list.length === 0) {
     historyList.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">ยังไม่มีประวัติการบันทึก</p>`;
     return;
@@ -253,7 +259,7 @@ function renderHistoryUI() {
   historyList.innerHTML = list.map(item => `
     <div class="history-card">
       <div class="history-card-header">
-        <span class="history-price">💰 Anchor: ${item.currentPrice.toFixed(2)}</span>
+        <span class="history-price">💰 Anchor: ${item.current_price.toFixed(2)}</span>
       </div>
 
       <div class="date-edit-box">
@@ -277,7 +283,7 @@ function renderHistoryUI() {
         </div>
         <div class="history-item">
           <div class="history-item-label">VOLATILITY</div>
-          <div class="history-item-val">${item.regime ? item.regime.ratio : '-'}</div>
+          <div class="history-item-val">${getVolatilityRegime(item.sd20, item.atr14).ratio}</div>
         </div>
       </div>
       <div class="history-actions">
@@ -288,12 +294,11 @@ function renderHistoryUI() {
   `).join("");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   renderHistoryUI();
 
   const btnAnalyze = document.getElementById("btnAnalyzeMarket");
   const btnClearHistory = document.getElementById("btnClearHistory");
-
   const confirmModal = document.getElementById("confirmModal");
   const btnCancelAnalyze = document.getElementById("btnCancelAnalyze");
   const btnConfirmAnalyze = document.getElementById("btnConfirmAnalyze");
@@ -307,12 +312,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const ma = document.getElementById("ma12")?.value;
         const atr = document.getElementById("atr14")?.value;
         const sd = document.getElementById("sd20")?.value;
-
         currentAnalysisData = analyzeCurrentMarketInput(cp, ma, atr, sd);
-
-        if (confirmModal) {
-          confirmModal.style.display = "flex";
-        }
+        if (confirmModal) confirmModal.style.display = "flex";
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
       }
@@ -322,15 +323,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnConfirmAnalyze) {
     btnConfirmAnalyze.addEventListener("click", () => {
       confirmModal.style.display = "none";
-      runScanningAnimation(() => {
+      runScanningAnimation(async () => {
         if (currentAnalysisData) {
           renderResultsUI(currentAnalysisData);
-          saveToHistory(currentAnalysisData);
-          
-          const resultContainer = document.getElementById("resultContainer");
-          if (resultContainer) {
-            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
+          await saveToCloud(currentAnalysisData);
+          document.getElementById("resultContainer")?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });
     });
@@ -342,11 +339,7 @@ document.addEventListener("DOMContentLoaded", () => {
       runScanningAnimation(() => {
         if (currentAnalysisData) {
           renderResultsUI(currentAnalysisData);
-          
-          const resultContainer = document.getElementById("resultContainer");
-          if (resultContainer) {
-            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
+          document.getElementById("resultContainer")?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });
     });
