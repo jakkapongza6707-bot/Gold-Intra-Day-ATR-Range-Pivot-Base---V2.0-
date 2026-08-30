@@ -3,8 +3,8 @@
  * ========================================== */
 
 const SUPABASE_URL = 'https://ctolckvhfojrchzjaqyo.supabase.co';
-const SUPABASE_ANON_KEY = 'Sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR';
-const SHARED_KEY = 'sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR'; // รหัสอ้างอิงกลางเชื่อมระหว่างไอแพดกับมือถือ
+const SUPABASE_ANON_KEY = 'sb_publishable_l5UISnbptCI8T6HwE7di2w_0e7ZGyqR';
+const SHARED_KEY = 'jakkapong_gold_device';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -181,7 +181,6 @@ function runScanningAnimation(callback) {
   }, 25);
 }
 
-// ระบบ Cloud Functions แบบไม่ต้อง Login
 async function saveToCloud(record) {
   await supabaseClient.from('gold_history').insert([{
     device_key: SHARED_KEY,
